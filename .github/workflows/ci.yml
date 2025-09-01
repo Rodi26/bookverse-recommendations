@@ -533,19 +533,15 @@ jobs:
           EOF
           )
 
-          # Create the application version with status/body capture
-          RESP_BODY=$(mktemp)
-          HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
-            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" \
-            -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+          # Create the application version using JFrog CLI (OIDC context)
+          RESP_BODY=$(jf rt curl -sS -X POST \
+            "/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" \
             -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
             -d "$APP_VERSION_PAYLOAD")
-          echo "🔢 HTTP Status: $HTTP_STATUS"
-          echo "📨 Response Body:"; cat "$RESP_BODY"; echo
-          rm -f "$RESP_BODY"
-          if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
+          echo "📨 Response Body:"; echo "$RESP_BODY" | sed -e 's/.*/&/'
+          if ! echo "$RESP_BODY" | grep -q '"version"'; then
             echo "❌ Failed to create application version" >&2
             exit 1
           fi
