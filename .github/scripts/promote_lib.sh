@@ -121,9 +121,9 @@ release_version() {
   echo "🚀 Releasing to ${FINAL_STAGE} via AppTrust Release API"
   local payload
   if [[ -n "${RELEASE_INCLUDED_REPO_KEYS:-}" ]]; then
-    payload=$(printf '{"promotion_type":"copy","included_repository_keys":%s}' "${RELEASE_INCLUDED_REPO_KEYS}")
+    payload=$(printf '{"promotion_type":"move","included_repository_keys":%s}' "${RELEASE_INCLUDED_REPO_KEYS}")
   else
-    payload='{"promotion_type":"copy"}'
+    payload='{"promotion_type":"move"}'
   fi
   http_status=$(curl -sS -L -o "$resp_body" -w "%{http_code}" -X POST \
     "${JFROG_URL}/apptrust/api/v1/applications/${APPLICATION_KEY}/versions/${APP_VERSION}/release?async=false" \

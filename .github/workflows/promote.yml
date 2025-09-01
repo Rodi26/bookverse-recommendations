@@ -26,6 +26,14 @@ jobs:
 
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
+        env:
+          JF_URL: ${{ vars.JFROG_URL }}
+          JF_PROJECT: ${{ vars.PROJECT_KEY }}
+        with:
+          version: latest
+          oidc-provider-name: github-bookverse-recommendations
+          disable-job-summary: true
+          oidc-audience: jfrog-github
 
       - name: Configure JFrog URL
         run: |
@@ -137,37 +145,8 @@ jobs:
           fetch_summary
           if [[ "$(display_stage_for "${CURRENT_STAGE:-}")" == "STAGING" ]]; then ALLOW_RELEASE=true; advance_one_step; else echo "Skipping release: current stage is $(display_stage_for "${CURRENT_STAGE:-UNASSIGNED}")"; fi
 
-      - name: Attach promotion evidence (application version)
-        run: |
-          cat <<EOF > promotion-evidence.json
-          {
-            "promotion": {
-              "targetStage": "${{ env.TARGET }}",
-              "approvedBy": "${{ github.actor }}",
-              "approvedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-              "changeRef": "DEMO-123"
-            }
-          }
-          EOF
-
-          cat > promotion-evidence.md <<EOF
-          # Promotion Evidence
-
-          - Target Stage: **${{ env.TARGET }}**
-          - Approved By: **${{ github.actor }}**
-          - Change Ref: **DEMO-123**
-          - Approved At: **$(date -u)**
-          EOF
-
-          jf evd create-evidence \
-            --predicate promotion-evidence.json \
-            --markdown promotion-evidence.md \
-            --predicate-type "Promotion" \
-            --release-bundle "${{ env.APPLICATION_KEY }}" \
-            --release-bundle-version "${{ env.APP_VERSION }}" \
-            --project "${{ vars.PROJECT_KEY }}" \
-            --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" \
-            --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}" || echo "Promotion evidence attach failed"
+      # STAGING evidence steps are attached during transitions using the same
+      # predicates and types as inventory; no extra ad-hoc promotion evidence.
 
       - name: Attach IaC scan evidence (application version)
         run: |
@@ -244,11 +223,18 @@ jobs:
             --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" \
             --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}" || echo "Change approval evidence attach failed"
 
-      - name: Promotion summary
+      - name: Generate promotion summary
         run: |
-          echo "## Promotion Summary" >> $GITHUB_STEP_SUMMARY
-          echo "Application: ${{ env.APPLICATION_KEY }}" >> $GITHUB_STEP_SUMMARY
-          echo "Version: ${{ env.APP_VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "Target Stage: ${{ env.TARGET }}" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 AppTrust Promotion Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📄 Evidence Plan: see bookverse-demo-init/docs/EVIDENCE_PLAN.md" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Application:** $APPLICATION_KEY" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** $APP_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Started at:** ${CURRENT_STAGE_BEFORE}" >> $GITHUB_STEP_SUMMARY
+          echo "**Promoted stages:** ${PROMOTED_STAGES:-none}" >> $GITHUB_STEP_SUMMARY
+          echo "**Released to ${FINAL_STAGE}:** ${DID_RELEASE}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Lifecycle final stage: ${FINAL_STAGE}" >> $GITHUB_STEP_SUMMARY
 
 
