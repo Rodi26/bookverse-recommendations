@@ -538,7 +538,7 @@ jobs:
           jf c use "$SERVER_ID" || true
           # Attempt to create the application version (treat non-zero exit as failure)
           RESP_FILE=$(mktemp)
-          if jf rt curl -sS -L -X POST \
+          if jf curl -sS -L -X POST \
                "/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?project=${{ vars.PROJECT_KEY }}&async=false" \
                -H "Content-Type: application/json" \
                -H "Accept: application/json" \
@@ -547,7 +547,7 @@ jobs:
           else
             echo "⚠️ Create version failed via OIDC. Checking if version already exists..."
             # If the version exists, proceed; otherwise, fail
-            if jf rt curl -sS -L "/apptrust/api/v1/applications/$APPLICATION_KEY/versions/$APP_VERSION?project=${{ vars.PROJECT_KEY }}" > /dev/null; then
+            if jf curl -sS -L "/apptrust/api/v1/applications/$APPLICATION_KEY/versions/$APP_VERSION?project=${{ vars.PROJECT_KEY }}" > /dev/null; then
               echo "✅ Version already exists: $APPLICATION_KEY@$APP_VERSION — proceeding"
             else
               echo "❌ Failed to create application version and not found via exists check" >&2
