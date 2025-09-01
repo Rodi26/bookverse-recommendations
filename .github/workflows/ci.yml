@@ -536,7 +536,7 @@ jobs:
           # Create the application version with status/body capture (admin token)
           RESP_FILE=$(mktemp)
           HTTP_STATUS=$(curl -sS -L -o "$RESP_FILE" -w "%{http_code}" -X POST \
-            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" \
+            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?project=${{ vars.PROJECT_KEY }}&async=false" \
             -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
@@ -546,7 +546,7 @@ jobs:
           if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
             echo "⚠️ Create version failed (HTTP $HTTP_STATUS). Checking if version already exists..."
             EXIST_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -L \
-              "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/$APP_VERSION" \
+              "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/$APP_VERSION?project=${{ vars.PROJECT_KEY }}" \
               -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
               -H "Accept: application/json")
             echo "🔎 Exists check HTTP: $EXIST_STATUS"
