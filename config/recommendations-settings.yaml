@@ -1,0 +1,15 @@
+weights:
+  genre: 1.0
+  author: 0.25
+  popularity: 0.10
+
+limits:
+  default: 10
+  max: 50
+
+features:
+  filter_out_of_stock: true
+  enable_cache: false
+  ttl_seconds: 60
+
+

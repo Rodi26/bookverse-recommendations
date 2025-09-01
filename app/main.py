@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from .api import router as api_router
 
 app = FastAPI(title="BookVerse Recommendations Service")
 
@@ -12,4 +13,6 @@ def health():
 def info():
     return {"service": "recommendations", "version": "0.1.0"}
 
+
+app.include_router(api_router)
 
