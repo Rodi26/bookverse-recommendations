@@ -486,9 +486,9 @@ jobs:
           IMAGE_TAG="${APP_VERSION}"
           APPLICATION_KEY="bookverse-$SERVICE_NAME"
           BUILD_INFO_REPO="${{ vars.PROJECT_KEY }}-build-info"
-          # Align build reference with build-test-publish job outputs
-          BUILD_NAME="${{ needs.build-test-publish.outputs.build_name }}"
-          BUILD_NUMBER="${{ needs.build-test-publish.outputs.build_number }}"
+          # Align build reference with inventory convention (repo_workflow_build-job, run number)
+          BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_build-test-publish"
+          BUILD_NUMBER="${{ github.run_number }}"
 
           echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
