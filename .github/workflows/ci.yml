@@ -533,27 +533,25 @@ jobs:
           EOF
           )
 
-          # Create the application version with status/body capture (admin token)
+          # Prefer OIDC-authenticated JFrog CLI context for AppTrust API calls
+          SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
+          jf c use "$SERVER_ID" || true
+          # Attempt to create the application version (treat non-zero exit as failure)
           RESP_FILE=$(mktemp)
-          HTTP_STATUS=$(curl -sS -L -o "$RESP_FILE" -w "%{http_code}" -X POST \
-            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?project=${{ vars.PROJECT_KEY }}&async=false" \
-            -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            -d "$APP_VERSION_PAYLOAD")
-          echo "🔢 HTTP Status: $HTTP_STATUS"
-          echo "📨 Response Body:"; cat "$RESP_FILE"; echo
-          if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
-            echo "⚠️ Create version failed (HTTP $HTTP_STATUS). Checking if version already exists..."
-            EXIST_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -L \
-              "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/$APP_VERSION?project=${{ vars.PROJECT_KEY }}" \
-              -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
-              -H "Accept: application/json")
-            echo "🔎 Exists check HTTP: $EXIST_STATUS"
-            if [[ "$EXIST_STATUS" == "200" ]]; then
+          if jf rt curl -sS -L -X POST \
+               "/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?project=${{ vars.PROJECT_KEY }}&async=false" \
+               -H "Content-Type: application/json" \
+               -H "Accept: application/json" \
+               -d "$APP_VERSION_PAYLOAD" > "$RESP_FILE"; then
+            echo "✅ Application version created via OIDC"
+          else
+            echo "⚠️ Create version failed via OIDC. Checking if version already exists..."
+            # If the version exists, proceed; otherwise, fail
+            if jf rt curl -sS -L "/apptrust/api/v1/applications/$APPLICATION_KEY/versions/$APP_VERSION?project=${{ vars.PROJECT_KEY }}" > /dev/null; then
               echo "✅ Version already exists: $APPLICATION_KEY@$APP_VERSION — proceeding"
             else
               echo "❌ Failed to create application version and not found via exists check" >&2
+              cat "$RESP_FILE" || true
               rm -f "$RESP_FILE"
               exit 1
             fi
