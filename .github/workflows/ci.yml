@@ -1,5 +1,24 @@
 name: CI
 
+###############################################
+# DEMO TOGGLE
+#
+# Quick switch to enable a verbose, demo-friendly mode.
+# How to use:
+#   - To enable demo mode for a single run: set input DEMO_MODE=true when dispatching
+#   - Or uncomment the env default below to keep it always on until you revert
+#
+# Example (always on until you turn it off again):
+# env:
+#   DEMO_MODE: true
+#
+# When DEMO_MODE is true, the workflow will:
+#   - Turn on GitHub Actions runner debug logs
+#   - Increase HTTP request verbosity for curl steps
+#   - Print shell traces (set -x) in key steps
+#   - Set HTTP_DEBUG_LEVEL=verbose for shared helpers
+###############################################
+
 # NOTE: Manual trigger only during development phase
 # Will be changed to automatic triggers (push/PR) when demo is ready
 on:
@@ -10,6 +29,12 @@ on:
         required: false
         default: 'Manual testing'
         type: string
+      DEMO_MODE:
+        description: 'Enable demo mode (verbose logs, request tracing)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 jobs:
   build-test-publish:
@@ -29,10 +54,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Apply DEMO_MODE settings
+        if: ${{ inputs.DEMO_MODE == 'true' || env.DEMO_MODE == 'true' }}
+        run: |
+          echo "🔔 DEMO_MODE enabled"
+          # Enable GitHub Actions debug logs for this job
+          echo "ACTIONS_STEP_DEBUG=true" >> $GITHUB_ENV
+          echo "ACTIONS_RUNNER_DEBUG=true" >> $GITHUB_ENV
+          # Make HTTP helpers verbose
+          echo "HTTP_DEBUG_LEVEL=verbose" >> $GITHUB_ENV
+          # Many steps respect this to show detailed shell execution
+          echo "BASH_XTRACE_ENABLED=1" >> $GITHUB_ENV
+          # Also useful for services using LOG_LEVEL env
+          echo "LOG_LEVEL=DEBUG" >> $GITHUB_ENV
+
       - name: Display manual trigger info
         run: |
           echo "🚀 Manual CI trigger initiated"
           echo "📝 Reason: ${{ inputs.reason || 'Manual testing' }}"
+          echo "🎛️ DEMO_MODE: ${{ inputs.DEMO_MODE || env.DEMO_MODE || 'false' }}"
           echo "👤 Triggered by: ${{ github.actor }}"
           echo "🕐 Timestamp: $(date -u)"
 
@@ -486,9 +526,9 @@ jobs:
           IMAGE_TAG="${APP_VERSION}"
           APPLICATION_KEY="bookverse-$SERVICE_NAME"
           BUILD_INFO_REPO="${{ vars.PROJECT_KEY }}-build-info"
-          # Align build reference with inventory convention (repo_workflow_build-job, run number)
-          BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_build-test-publish"
-          BUILD_NUMBER="${{ github.run_number }}"
+          # Align build reference with build-test-publish job outputs
+          BUILD_NAME="${{ needs.build-test-publish.outputs.build_name }}"
+          BUILD_NUMBER="${{ needs.build-test-publish.outputs.build_number }}"
 
           echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
@@ -516,9 +556,40 @@ jobs:
         run: |
           echo "🚀 Creating AppTrust application version: $APP_VERSION"
 
+          # Determine application version tag - simulate real development environment
+          # Array of realistic single tags for demo (aligned with inventory)
+          TAG_OPTIONS=(
+            "release"
+            "hotfix"
+            "feature"
+            "bugfix"
+            "enhancement"
+            "security"
+            "performance"
+            "refactor"
+            "experimental"
+            "maintenance"
+            "integration"
+            "documentation"
+            "stable"
+            "beta"
+            "alpha"
+            "critical"
+            "patch"
+            "minor"
+            "major"
+            "cleanup"
+          )
+          # Randomly select single tag based on run number for consistency
+          TAG_INDEX=$((${GITHUB_RUN_NUMBER:-0} % ${#TAG_OPTIONS[@]}))
+          APP_TAG="${TAG_OPTIONS[$TAG_INDEX]}"
+          echo "🏷️ Application Version Tag (demo simulation): $APP_TAG"
+
+          # Create application version with build sources
           APP_VERSION_PAYLOAD=$(cat << EOF
           {
             "version": "$APP_VERSION",
+            "tag": "$APP_TAG",
             "sources": {
               "builds": [
                 {
@@ -533,30 +604,63 @@ jobs:
           EOF
           )
 
-          # Prefer OIDC-authenticated JFrog CLI context for AppTrust API calls
-          SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
-          jf c use "$SERVER_ID" || true
-          # Attempt to create the application version (treat non-zero exit as failure)
-          RESP_FILE=$(mktemp)
-          if jf rt curl -sS -L -X POST \
-               "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?project=${{ vars.PROJECT_KEY }}&async=false" \
-               -H "Content-Type: application/json" \
-               -H "Accept: application/json" \
-               -d "$APP_VERSION_PAYLOAD" > "$RESP_FILE"; then
-            echo "✅ Application version created via OIDC"
-          else
-            echo "⚠️ Create version failed via OIDC. Checking if version already exists..."
-            # If the version exists, proceed; otherwise, fail
-            if jf rt curl -sS -L "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/$APP_VERSION?project=${{ vars.PROJECT_KEY }}" > /dev/null; then
-              echo "✅ Version already exists: $APPLICATION_KEY@$APP_VERSION — proceeding"
-            else
-              echo "❌ Failed to create application version and not found via exists check" >&2
-              cat "$RESP_FILE" || true
-              rm -f "$RESP_FILE"
-              exit 1
-            fi
+          # Debug: show sanitized curl and payload
+          echo "📦 Application Key: $APPLICATION_KEY"
+          echo "📝 Payload:"; echo "$APP_VERSION_PAYLOAD" | jq . || echo "$APP_VERSION_PAYLOAD"
+          # Source shared helper if available, with a robust fallback definition
+          if [ -f .github/scripts/http_debug.sh ]; then source .github/scripts/http_debug.sh; fi
+          if ! declare -f print_request_debug >/dev/null 2>&1; then
+            print_request_debug() {
+              local method="$1"; local url="$2"; local body="${3:-}"; local level="${HTTP_DEBUG_LEVEL:-basic}"
+              [ "$level" = "none" ] && return 0
+              local show_project_header=false
+              if [[ "${DEBUG_INCLUDE_PROJECT_HEADER:-}" == "true" || "${DEBUG_INCLUDE_PROJECT_HEADER:-}" == "1" ]]; then
+                show_project_header=true
+              else
+                if [[ "$url" == *"/apptrust/api/"* ]]; then
+                  if [[ "$url" == *"/promote"* || "$url" == *"/release"* ]]; then
+                    show_project_header=false
+                  else
+                    show_project_header=true
+                  fi
+                fi
+              fi
+              local show_content_type=false
+              if [[ "$method" == "POST" ]]; then
+                show_content_type=true
+              fi
+              echo "---- Request debug (${level}) ----"
+              echo "Method: ${method}"
+              echo "URL: ${url}"
+              echo "Headers:"
+              echo "  Authorization: Bearer ***REDACTED***"
+              if $show_project_header && [[ -n "${PROJECT_KEY:-}" ]]; then echo "  X-JFrog-Project: ${PROJECT_KEY}"; fi
+              if $show_content_type; then echo "  Content-Type: application/json"; fi
+              echo "  Accept: application/json"
+              if [ -n "$body" ] && [ "$level" = "verbose" ]; then
+                echo "Body: ${body}"
+              fi
+              echo "-----------------------"
+            }
           fi
-          rm -f "$RESP_FILE"
+          echo "🔗 Curl (sanitized): curl -X POST '${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false' -H 'Authorization: Bearer ***' -H 'Content-Type: application/json' -H 'Accept: application/json' -d '<payload>'"
+          DEBUG_INCLUDE_PROJECT_HEADER=false print_request_debug "POST" "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" "<payload>"
+
+          # Create the application version with status/body capture (align with inventory: use admin token via curl)
+          RESP_BODY=$(mktemp)
+          HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
+            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" \
+            -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d "$APP_VERSION_PAYLOAD")
+          echo "🔢 HTTP Status: $HTTP_STATUS"
+          echo "📨 Response Body:"; cat "$RESP_BODY"; echo
+          rm -f "$RESP_BODY"
+          if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
+            echo "❌ Failed to create application version" >&2
+            exit 1
+          fi
 
           echo "✅ Application version created: $APPLICATION_KEY@$APP_VERSION"
           echo "📦 Packages will be automatically bound from build sources"
