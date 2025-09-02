@@ -45,8 +45,8 @@ jobs:
     env:
       PYTHONPATH: ${{ github.workspace }}
     outputs:
-      build_name: ${{ steps.finalize-build-info.outputs.build_name }}
-      build_number: ${{ steps.finalize-build-info.outputs.build_number }}
+      build_name: ${{ steps.set-build-info.outputs.build_name }}
+      build_number: ${{ steps.set-build-info.outputs.build_number }}
       app_version: ${{ steps.set-app-version.outputs.app_version }}
       coverage_percent: ${{ steps.test-coverage.outputs.coverage_percent }}
 
@@ -76,10 +76,10 @@ jobs:
           echo "👤 Triggered by: ${{ github.actor }}"
           echo "🕐 Timestamp: $(date -u)"
 
-      - name: Set Build Info (job + run)
+      - name: Set Build Info (canonical)
         id: set-build-info
         run: |
-          BUILD_NAME="${{ github.event.repository.name }}-${{ github.job }}"
+          BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_${{ github.job }}"
           BUILD_NUMBER="${{ github.run_number }}-${{ github.run_attempt }}"
           echo "BUILD_NAME=$BUILD_NAME" >> $GITHUB_ENV
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
@@ -141,17 +141,6 @@ jobs:
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
           echo "APPLICATION_KEY=$APPLICATION_KEY" >> $GITHUB_ENV
 
-      - name: Finalize Build Info (repo_workflow_job / runNumber)
-        id: finalize-build-info
-        run: |
-          # Build name: <repo>_<workflow>_<job>
-          BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_${{ github.job }}"
-          # Build number: <run-number>
-          BUILD_NUMBER="${{ github.run_number }}"
-          echo "BUILD_NAME=$BUILD_NAME" >> $GITHUB_ENV
-          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
-          echo "build_name=$BUILD_NAME" >> $GITHUB_OUTPUT
-          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
 
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
@@ -526,9 +515,9 @@ jobs:
           IMAGE_TAG="${APP_VERSION}"
           APPLICATION_KEY="bookverse-$SERVICE_NAME"
           BUILD_INFO_REPO="${{ vars.PROJECT_KEY }}-build-info"
-          # Align build reference with build-test-publish job outputs
-          BUILD_NAME="${{ needs.build-test-publish.outputs.build_name }}"
-          BUILD_NUMBER="${{ needs.build-test-publish.outputs.build_number }}"
+          # Recompute canonical build reference for the build job
+          BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_build-test-publish"
+          BUILD_NUMBER="${{ github.run_number }}-${{ github.run_attempt }}"
 
           echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
@@ -607,6 +596,11 @@ jobs:
           # Debug: show sanitized curl and payload
           echo "📦 Application Key: $APPLICATION_KEY"
           echo "📝 Payload:"; echo "$APP_VERSION_PAYLOAD" | jq . || echo "$APP_VERSION_PAYLOAD"
+          # Emit a copy/paste-ready curl with obfuscated token and inlined payload
+          URL="${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false"
+          SANITIZED_PAYLOAD=$(echo "$APP_VERSION_PAYLOAD" | jq -c 2>/dev/null || printf "%s" "$APP_VERSION_PAYLOAD")
+          echo "🔗 Curl (copy/paste-ready):"
+          echo "curl -X POST \"$URL\" -H 'Authorization: Bearer <REPLACE_WITH_ACCESS_TOKEN>' -H 'Content-Type: application/json' -H 'Accept: application/json' --data-raw '$SANITIZED_PAYLOAD'"
           # Source shared helper if available, with a robust fallback definition
           if [ -f .github/scripts/http_debug.sh ]; then source .github/scripts/http_debug.sh; fi
           if ! declare -f print_request_debug >/dev/null 2>&1; then
