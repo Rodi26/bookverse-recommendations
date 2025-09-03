@@ -68,6 +68,20 @@ jobs:
           # Also useful for services using LOG_LEVEL env
           echo "LOG_LEVEL=DEBUG" >> $GITHUB_ENV
 
+      - name: Configure HTTP debug verbosity
+        run: |
+          # HTTP_DEBUG_LEVEL: none|basic|verbose (default basic)
+          case "${HTTP_DEBUG_LEVEL:-}" in
+            none|basic|verbose)
+              echo "HTTP_DEBUG_LEVEL=${HTTP_DEBUG_LEVEL}" >> $GITHUB_ENV ;;
+            *)
+              if [[ "${{ inputs.DEMO_MODE }}" == "true" || "${DEMO_MODE:-}" == "true" ]]; then
+                echo "HTTP_DEBUG_LEVEL=verbose" >> $GITHUB_ENV
+              else
+                echo "HTTP_DEBUG_LEVEL=basic" >> $GITHUB_ENV
+              fi ;;
+          esac
+
       - name: Display manual trigger info
         run: |
           echo "🚀 Manual CI trigger initiated"
@@ -543,6 +557,8 @@ jobs:
 
       - name: Create application version
         run: |
+          # Avoid shell xtrace leaking; ensure predictable logs
+          set +x || true
           echo "🚀 Creating AppTrust application version: $APP_VERSION"
 
           # Determine application version tag - simulate real development environment
@@ -601,42 +617,39 @@ jobs:
           SANITIZED_PAYLOAD=$(echo "$APP_VERSION_PAYLOAD" | jq -c 2>/dev/null || printf "%s" "$APP_VERSION_PAYLOAD")
           echo "🔗 Curl (copy/paste-ready):"
           echo "curl -X POST \"$URL\" -H 'Authorization: Bearer <REPLACE_WITH_ACCESS_TOKEN>' -H 'Content-Type: application/json' -H 'Accept: application/json' --data-raw '$SANITIZED_PAYLOAD'"
-          # Source shared helper if available, with a robust fallback definition
-          if [ -f .github/scripts/http_debug.sh ]; then source .github/scripts/http_debug.sh; fi
-          if ! declare -f print_request_debug >/dev/null 2>&1; then
-            print_request_debug() {
-              local method="$1"; local url="$2"; local body="${3:-}"; local level="${HTTP_DEBUG_LEVEL:-basic}"
-              [ "$level" = "none" ] && return 0
-              local show_project_header=false
-              if [[ "${DEBUG_INCLUDE_PROJECT_HEADER:-}" == "true" || "${DEBUG_INCLUDE_PROJECT_HEADER:-}" == "1" ]]; then
-                show_project_header=true
-              else
-                if [[ "$url" == *"/apptrust/api/"* ]]; then
-                  if [[ "$url" == *"/promote"* || "$url" == *"/release"* ]]; then
-                    show_project_header=false
-                  else
-                    show_project_header=true
-                  fi
+          # Define a local debug helper that only redacts Authorization tokens
+          print_request_debug() {
+            local method="$1"; local url="$2"; local body="${3:-}"; local level="${HTTP_DEBUG_LEVEL:-basic}"
+            [ "$level" = "none" ] && return 0
+            local show_project_header=false
+            if [[ "${DEBUG_INCLUDE_PROJECT_HEADER:-}" == "true" || "${DEBUG_INCLUDE_PROJECT_HEADER:-}" == "1" ]]; then
+              show_project_header=true
+            else
+              if [[ "$url" == *"/apptrust/api/"* ]]; then
+                if [[ "$url" == *"/promote"* || "$url" == *"/release"* ]]; then
+                  show_project_header=false
+                else
+                  show_project_header=true
                 fi
               fi
-              local show_content_type=false
-              if [[ "$method" == "POST" ]]; then
-                show_content_type=true
-              fi
-              echo "---- Request debug (${level}) ----"
-              echo "Method: ${method}"
-              echo "URL: ${url}"
-              echo "Headers:"
-              echo "  Authorization: Bearer ***REDACTED***"
-              if $show_project_header && [[ -n "${PROJECT_KEY:-}" ]]; then echo "  X-JFrog-Project: ${PROJECT_KEY}"; fi
-              if $show_content_type; then echo "  Content-Type: application/json"; fi
-              echo "  Accept: application/json"
-              if [ -n "$body" ] && [ "$level" = "verbose" ]; then
-                echo "Body: ${body}"
-              fi
-              echo "-----------------------"
-            }
-          fi
+            fi
+            local show_content_type=false
+            if [[ "$method" == "POST" ]]; then
+              show_content_type=true
+            fi
+            echo "---- Request debug (${level}) ----"
+            echo "Method: ${method}"
+            echo "URL: ${url}"
+            echo "Headers:"
+            echo "  Authorization: Bearer ***REDACTED***"
+            if $show_project_header && [[ -n "${PROJECT_KEY:-}" ]]; then echo "  X-JFrog-Project: ${PROJECT_KEY}"; fi
+            if $show_content_type; then echo "  Content-Type: application/json"; fi
+            echo "  Accept: application/json"
+            if [ -n "$body" ] && [ "$level" = "verbose" ]; then
+              echo "Body: ${body}"
+            fi
+            echo "-----------------------"
+          }
           DEBUG_INCLUDE_PROJECT_HEADER=false print_request_debug "POST" "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" "$APP_VERSION_PAYLOAD"
 
           # Create the application version with status/body capture (testing OIDC instead of admin token)
