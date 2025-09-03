@@ -123,8 +123,9 @@ jobs:
           echo "🔎 Resolving next SemVer for $APPLICATION_KEY"
           RESP_FILE=$(mktemp)
           HTTP_STATUS=$(curl -sS -L -o "$RESP_FILE" -w "%{http_code}" \
-            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/" \
+            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?limit=1&order_by=created&order_asc=false" \
             -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+            -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
             -H "Accept: application/json")
           if [[ "$HTTP_STATUS" -ge 200 && "$HTTP_STATUS" -lt 300 ]]; then
             if LATEST_VERSION=$(jq -er '.versions[0].version // empty' "$RESP_FILE" 2>/dev/null); then
@@ -616,7 +617,7 @@ jobs:
           URL="${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false"
           SANITIZED_PAYLOAD=$(echo "$APP_VERSION_PAYLOAD" | jq -c 2>/dev/null || printf "%s" "$APP_VERSION_PAYLOAD")
           echo "🔗 Curl (copy/paste-ready):"
-          echo "curl -X POST \"$URL\" -H 'Authorization: Bearer <REPLACE_WITH_ACCESS_TOKEN>' -H 'Content-Type: application/json' -H 'Accept: application/json' --data-raw '$SANITIZED_PAYLOAD'"
+          echo "curl -X POST \"$URL\" -H \"Authorization: Bearer <REPLACE_WITH_ACCESS_TOKEN>\" -H \"X-JFrog-Project: ${PROJECT_KEY:-${{ vars.PROJECT_KEY }}}\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" --data-raw '$SANITIZED_PAYLOAD'"
           # Define a local debug helper that only redacts Authorization tokens
           print_request_debug() {
             local method="$1"; local url="$2"; local body="${3:-}"; local level="${HTTP_DEBUG_LEVEL:-basic}"
@@ -666,12 +667,68 @@ jobs:
           HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
             "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false" \
             -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+            -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
             -d "$APP_VERSION_PAYLOAD")
           echo "🔢 HTTP Status: $HTTP_STATUS"
           echo "📨 Response Body:"; cat "$RESP_BODY"; echo
           rm -f "$RESP_BODY"
+          if [[ "$HTTP_STATUS" == "409" ]]; then
+            echo "ℹ️ Version already exists. Resolving next patch and retrying once."
+            RESP_FILE2=$(mktemp)
+            HTTP_STATUS_LIST=$(curl -sS -L -o "$RESP_FILE2" -w "%{http_code}" \
+              "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?limit=1&order_by=created&order_asc=false" \
+              -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+              -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
+              -H "Accept: application/json")
+            if [[ "$HTTP_STATUS_LIST" -ge 200 && "$HTTP_STATUS_LIST" -lt 300 ]]; then
+              if LATEST_VERSION=$(jq -er '.versions[0].version // empty' "$RESP_FILE2" 2>/dev/null); then
+                :
+              else
+                LATEST_VERSION=""
+              fi
+            else
+              LATEST_VERSION=""
+            fi
+            rm -f "$RESP_FILE2"
+            if [[ -n "$LATEST_VERSION" && "$LATEST_VERSION" != "null" ]]; then
+              MAJOR=$(echo "$LATEST_VERSION" | cut -d. -f1)
+              MINOR=$(echo "$LATEST_VERSION" | cut -d. -f2)
+              PATCH=$(echo "$LATEST_VERSION" | cut -d. -f3 | cut -d- -f1)
+              APP_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+              echo "⬆️ Bumping to next version: $APP_VERSION"
+              echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
+              APP_VERSION_PAYLOAD=$(cat << EOF
+          {
+            "version": "$APP_VERSION",
+            "tag": "$APP_TAG",
+            "sources": {
+              "builds": [
+                {
+                  "name": "$BUILD_NAME",
+                  "number": "$BUILD_NUMBER",
+                  "repository_key": "$BUILD_INFO_REPO",
+                  "include_dependencies": true
+                }
+              ]
+            }
+          }
+          EOF
+          )
+              RESP_BODY=$(mktemp)
+              HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
+                "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false" \
+                -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+                -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
+                -H "Content-Type: application/json" \
+                -H "Accept: application/json" \
+                -d "$APP_VERSION_PAYLOAD")
+              echo "🔢 HTTP Status (retry): $HTTP_STATUS"
+              echo "📨 Response Body (retry):"; cat "$RESP_BODY"; echo
+              rm -f "$RESP_BODY"
+            fi
+          fi
           if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
             echo "❌ Failed to create application version" >&2
             exit 1
