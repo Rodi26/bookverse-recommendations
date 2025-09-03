@@ -662,22 +662,10 @@ jobs:
           #   -H "Accept: application/json" \
           #   -d "$APP_VERSION_PAYLOAD")
 
-          # NEW: Acquire short-lived JFrog access token via GitHub OIDC and use it
-          OIDC_AUDIENCE="${{ vars.JFROG_OIDC_AUDIENCE }}"
-          OIDC_PROVIDER="${{ vars.JFROG_OIDC_PROVIDER }}"
-          : "${OIDC_AUDIENCE:=jfrog-github}"
-          : "${OIDC_PROVIDER:=github-bookverse-recommendations}"
-          OIDC_ID_TOKEN=$(curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${OIDC_AUDIENCE}" | jq -r '.value')
-          EXCHANGE_REQ=$(jq -n \
-            --arg provider "$OIDC_PROVIDER" \
-            --arg subject "$OIDC_ID_TOKEN" \
-            '{providerName:$provider,subjectToken:$subject,grantType:"urn:ietf:params:oauth:grant-type:token-exchange",subjectTokenType:"urn:ietf:params:oauth:token-type:id_token",requestedTokenType:"urn:ietf:params:oauth:token-type:access_token"}')
-          ACCESS_TOKEN=$(curl -sS -X POST "${{ vars.JFROG_URL }}/access/api/v1/oidc/token" \
-            -H "Content-Type: application/json" -d "$EXCHANGE_REQ" | jq -r '.access_token')
+          # Use admin token for AppTrust call (consistent with inventory/checkout)
           HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
             "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
             -d "$APP_VERSION_PAYLOAD")
