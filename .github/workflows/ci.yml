@@ -613,7 +613,7 @@ jobs:
           echo "📦 Application Key: $APPLICATION_KEY"
           echo "📝 Payload:"; echo "$APP_VERSION_PAYLOAD" | jq . || echo "$APP_VERSION_PAYLOAD"
           # Emit a copy/paste-ready curl with obfuscated token and inlined payload
-          URL="${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false"
+          URL="${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false"
           SANITIZED_PAYLOAD=$(echo "$APP_VERSION_PAYLOAD" | jq -c 2>/dev/null || printf "%s" "$APP_VERSION_PAYLOAD")
           echo "🔗 Curl (copy/paste-ready):"
           echo "curl -X POST \"$URL\" -H 'Authorization: Bearer <REPLACE_WITH_ACCESS_TOKEN>' -H 'Content-Type: application/json' -H 'Accept: application/json' --data-raw '$SANITIZED_PAYLOAD'"
@@ -650,13 +650,13 @@ jobs:
             fi
             echo "-----------------------"
           }
-          DEBUG_INCLUDE_PROJECT_HEADER=false print_request_debug "POST" "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" "$APP_VERSION_PAYLOAD"
+          DEBUG_INCLUDE_PROJECT_HEADER=false print_request_debug "POST" "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false" "$APP_VERSION_PAYLOAD"
 
           # Create the application version with status/body capture (testing OIDC instead of admin token)
           RESP_BODY=$(mktemp)
           # OLD (commented for testing): use static admin token
           # HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
-          #   "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" \
+          #   "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false" \
           #   -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
           #   -H "Content-Type: application/json" \
           #   -H "Accept: application/json" \
@@ -664,7 +664,7 @@ jobs:
 
           # Use admin token for AppTrust call (consistent with inventory/checkout)
           HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
-            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" \
+            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false" \
             -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
