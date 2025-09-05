@@ -166,11 +166,11 @@ jobs:
           JFROG_CLI_BUILD_NUMBER: ${{ steps.set-build-info.outputs.build_number }}
         with:
           version: latest
-          oidc-provider-name: github-bookverse-recommendations
+          oidc-provider-name: bookverse-recommendations-github
           disable-job-summary: false
           disable-auto-build-publish: false
           disable-auto-evidence-collection: false
-          oidc-audience: jfrog-github
+          oidc-audience: ${{ vars.JFROG_URL }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -511,11 +511,11 @@ jobs:
           JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
         with:
           version: latest
-          oidc-provider-name: github-bookverse-recommendations
+          oidc-provider-name: bookverse-recommendations-github
           disable-job-summary: false
           disable-auto-build-publish: false
           disable-auto-evidence-collection: false
-          oidc-audience: jfrog-github
+          oidc-audience: ${{ vars.JFROG_URL }}
 
       - name: Configure JFrog CLI
         run: |
