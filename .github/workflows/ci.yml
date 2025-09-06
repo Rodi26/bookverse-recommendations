@@ -922,7 +922,7 @@ jobs:
           #   "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" \
           #   -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
           #   -H "Content-Type: application/json" \
-            -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
+          #   -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
           #   -H "Accept: application/json" \
           #   -d "$APP_VERSION_PAYLOAD")
 
@@ -931,7 +931,7 @@ jobs:
             "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false" \
             -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
+          #   -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
             -d "$APP_VERSION_PAYLOAD" \
             --fail-with-body )
           echo "🔢 HTTP Status: $HTTP_STATUS"
