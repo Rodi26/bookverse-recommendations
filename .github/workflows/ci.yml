@@ -1,4 +1,7 @@
-name: CI
+name: CI — Test, build API/worker images, upload config/resources, publish build-info
+
+env:
+  DEMO_MODE: "false"
 
 # Manual trigger for demo; can add push/PR later
 on:
@@ -9,6 +12,12 @@ on:
         required: false
         default: 'Manual testing'
         type: string
+      DEMO_MODE:
+        description: 'Enable demo mode (verbose logs, request tracing)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 jobs:
   build-test-publish:
@@ -26,10 +35,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Apply DEMO_MODE settings
+        if: ${{ inputs.DEMO_MODE == 'true' || env.DEMO_MODE == 'true' }}
+        run: |
+          echo "🔔 DEMO_MODE enabled"
+          echo "ACTIONS_STEP_DEBUG=true" >> $GITHUB_ENV
+          echo "ACTIONS_RUNNER_DEBUG=true" >> $GITHUB_ENV
+          echo "HTTP_DEBUG_LEVEL=verbose" >> $GITHUB_ENV
+          echo "BASH_XTRACE_ENABLED=1" >> $GITHUB_ENV
+          echo "LOG_LEVEL=DEBUG" >> $GITHUB_ENV
+
+      - name: Configure HTTP debug verbosity
+        run: |
+          case "${HTTP_DEBUG_LEVEL:-}" in
+            none|basic|verbose)
+              echo "HTTP_DEBUG_LEVEL=${HTTP_DEBUG_LEVEL}" >> $GITHUB_ENV ;;
+            *)
+              if [[ "${{ inputs.DEMO_MODE }}" == "true" || "${DEMO_MODE:-}" == "true" ]]; then
+                echo "HTTP_DEBUG_LEVEL=verbose" >> $GITHUB_ENV
+              else
+                echo "HTTP_DEBUG_LEVEL=basic" >> $GITHUB_ENV
+              fi ;;
+          esac
+
       - name: Display manual trigger info
         run: |
           echo "🚀 Manual CI trigger initiated"
           echo "📝 Reason: ${{ inputs.reason || 'Manual testing' }}"
+          echo "🎛️ DEMO_MODE: ${{ inputs.DEMO_MODE || env.DEMO_MODE || 'false' }}"
           echo "👤 Triggered by: ${{ github.actor }}"
           echo "🕐 Timestamp: $(date -u)"
 
@@ -65,8 +98,11 @@ jobs:
       - name: Install test dependencies via JFrog CLI
         run: |
           python -m pip install --upgrade "pip<25"
-          jf pip install pytest pytest-cov httpx
-          echo "✅ Installed test dependencies via JFrog CLI"
+          if ! jf pip install -U pytest pytest-cov httpx; then
+            echo "⚠️ jf pip install failed; falling back to public PyPI"
+            pip install -U pytest pytest-cov httpx -i https://pypi.org/simple
+          fi
+          echo "✅ Installed test dependencies"
 
       - name: Install project dependencies via JFrog CLI
         run: |
