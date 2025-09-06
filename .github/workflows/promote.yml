@@ -13,7 +13,7 @@ on:
           - QA
           - STAGING
           - PROD
-      application_version:
+      version:
         description: 'Application version (SemVer). If empty, use latest.'
         required: false
         type: string
@@ -28,6 +28,9 @@ jobs:
   promote:
     name: Promote
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: read
       id-token: write
@@ -76,7 +79,7 @@ jobs:
           SERVICE_NAME=recommendations
           APPLICATION_KEY="bookverse-$SERVICE_NAME"
           TARGET_STAGE='${{ inputs.target_stage }}'
-          APP_VERSION='${{ inputs.application_version }}'
+          APP_VERSION='${{ inputs.version }}'
           if [ -z "$APP_VERSION" ]; then
             RESP=$(curl -sS -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" -H "Accept: application/json" \
               "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?limit=1&order_by=created&order_asc=false")
