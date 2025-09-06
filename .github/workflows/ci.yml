@@ -657,12 +657,6 @@ jobs:
             --project "${{ vars.PROJECT_KEY }}" \
             --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ Generic evidence attachment failed (resources)"
 
-      - name: "[Build Info] Publish"
-        run: |
-          jf rt bag --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
-          jf rt bce --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
-          jf rt bp --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
-
       - name: "[Summary] CI"
         run: |
           echo "## 🏗️ Build Summary" >> $GITHUB_STEP_SUMMARY
@@ -780,8 +774,8 @@ jobs:
             --predicate license-evidence.json \
             --markdown license-evidence.md \
             --predicate-type "https://fossa.com/evidence/license-scan/v2.1" \
-            --build-name "${{ steps.set-build-info.outputs.build_name }}" \
-            --build-number "${{ steps.set-build-info.outputs.build_number }}" \
+            --build-name "$BUILD_NAME" \
+            --build-number "$BUILD_NUMBER" \
             --project "${{ vars.PROJECT_KEY }}" \
             --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" \
             --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}" || echo "⚠️ License compliance evidence attachment failed"
@@ -833,6 +827,8 @@ jobs:
           echo "APPLICATION_KEY=$APPLICATION_KEY" >> $GITHUB_ENV
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          echo "BUILD_NAME=$BUILD_NAME" >> $GITHUB_ENV
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "✅ AppTrust variables set: $APPLICATION_KEY@$APP_VERSION (build $SERVICE_NAME#$IMAGE_TAG)"
 
       - name: "[Release] Create application version"
