@@ -825,10 +825,13 @@ jobs:
           # Recompute canonical build reference for the build job
           BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_build-test-publish"
           BUILD_NUMBER="${{ github.run_number }}-${{ github.run_attempt }}"
+          # Pull version information from previous job outputs
+          APP_VERSION="${{ needs.build-test-publish.outputs.app_version }}"
+          IMAGE_TAG="$APP_VERSION"
 
           echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
-          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
           echo "APPLICATION_KEY=$APPLICATION_KEY" >> $GITHUB_ENV
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
           echo "✅ AppTrust variables set: $APPLICATION_KEY@$APP_VERSION (build $SERVICE_NAME#$IMAGE_TAG)"
 
@@ -932,7 +935,10 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d "$APP_VERSION_PAYLOAD" \
-            --fail-with-body || echo "⚠️ Application version may already exist"
+            --fail-with-body) || echo "⚠️ Application version may already exist"
+          echo "🔢 HTTP Status: $HTTP_STATUS"
+          echo "📨 Response Body:"; cat "$RESP_BODY" || true; echo
+          rm -f "$RESP_BODY"
           echo "✅ Application version created: $APPLICATION_KEY@$APP_VERSION"
 
       # Evidence Plan: App UNASSIGNED – slsa-provenance and jira-tickets (gate to DEV)
