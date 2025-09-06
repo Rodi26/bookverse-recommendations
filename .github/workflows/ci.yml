@@ -1,4 +1,7 @@
-name: CI — Test, build API/worker images, upload config/resources, publish build-info
+name: CI
+
+env:
+  DEMO_MODE: "false"
 
 # NOTE: Manual trigger only during development phase
 # Will be changed to automatic triggers (push/PR) when demo is ready
@@ -19,6 +22,7 @@ on:
 
 jobs:
   build-test-publish:
+    name: CI
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -30,10 +34,10 @@ jobs:
       coverage_percent: ${{ steps.test-coverage.outputs.coverage_percent }}
 
     steps:
-      - name: Checkout
+      - name: "[Setup] Checkout"
         uses: actions/checkout@v4
 
-      - name: Apply DEMO_MODE settings
+      - name: "[Setup] DEMO_MODE"
         if: ${{ inputs.DEMO_MODE == 'true' || env.DEMO_MODE == 'true' }}
         run: |
           echo "🔔 DEMO_MODE enabled"
@@ -43,30 +47,35 @@ jobs:
           echo "BASH_XTRACE_ENABLED=1" >> $GITHUB_ENV
           echo "LOG_LEVEL=DEBUG" >> $GITHUB_ENV
 
-      - name: Configure HTTP debug verbosity
+      - name: "[Setup] HTTP debug"
         run: |
+          # Ensure DEMO_MODE has a default and configure HTTP_DEBUG_LEVEL
+          DEMO_INPUT="${{ inputs.DEMO_MODE }}"
+          echo "DEMO_MODE=${DEMO_INPUT:-false}" >> $GITHUB_ENV
           # HTTP_DEBUG_LEVEL: none|basic|verbose (default basic)
           case "${HTTP_DEBUG_LEVEL:-}" in
             none|basic|verbose)
               echo "HTTP_DEBUG_LEVEL=${HTTP_DEBUG_LEVEL}" >> $GITHUB_ENV ;;
             *)
               # If DEMO_MODE is on, keep verbose, else default basic
-              if [[ "${{ inputs.DEMO_MODE }}" == "true" || "${DEMO_MODE:-}" == "true" ]]; then
+              if [[ "${DEMO_INPUT}" == "true" || "${DEMO_MODE:-}" == "true" ]]; then
                 echo "HTTP_DEBUG_LEVEL=verbose" >> $GITHUB_ENV
               else
                 echo "HTTP_DEBUG_LEVEL=basic" >> $GITHUB_ENV
               fi ;;
           esac
 
-      - name: Display manual trigger info
+      - name: "[Info] Manual trigger"
         run: |
+          DEMO_INPUT="${{ inputs.DEMO_MODE }}"
+          REASON_INPUT="${{ inputs.reason }}"
           echo "🚀 Manual CI trigger initiated"
-          echo "📝 Reason: ${{ inputs.reason || 'Manual testing' }}"
-          echo "🎛️ DEMO_MODE: ${{ inputs.DEMO_MODE || env.DEMO_MODE || 'false' }}"
+          echo "📝 Reason: ${REASON_INPUT:-Manual testing}"
+          echo "🎛️ DEMO_MODE: ${DEMO_INPUT:-${DEMO_MODE:-false}}"
           echo "👤 Triggered by: ${{ github.actor }}"
           echo "🕐 Timestamp: $(date -u)"
 
-      - name: Set Build Info (canonical)
+      - name: "[Setup] Build Info"
         id: set-build-info
         run: |
           BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_${{ github.job }}"
@@ -76,7 +85,7 @@ jobs:
           echo "build_name=$BUILD_NAME" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
 
-      - name: Set build variables
+      - name: "[Setup] Build variables"
         run: |
           SERVICE_NAME=$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')
           IMAGE_TAG=$(echo $GITHUB_SHA | head -c7)
@@ -90,7 +99,7 @@ jobs:
           echo "REGISTRY_URL=$REGISTRY_URL" >> $GITHUB_ENV
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
 
-      - name: Determine SemVer image version
+      - name: "[Setup] Determine SemVer"
         id: set-app-version
         run: |
           set -euo pipefail
@@ -132,7 +141,7 @@ jobs:
           echo "APPLICATION_KEY=$APPLICATION_KEY" >> $GITHUB_ENV
 
 
-      - name: Setup JFrog CLI
+      - name: "[Setup] JFrog CLI"
         uses: jfrog/setup-jfrog-cli@v4
         env:
           JF_URL: ${{ vars.JFROG_URL }}
@@ -147,21 +156,21 @@ jobs:
           disable-auto-evidence-collection: false
           oidc-audience: ${{ vars.JFROG_URL }}
 
-      - name: Configure JFrog CLI
+      - name: "[Setup] JFrog config"
         run: |
           jf c show || true
 
-      - name: Set up Python
+      - name: "[Setup] Python"
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Configure JFrog pip integration
+      - name: "[Setup] JFrog pip"
         run: |
           jf pipc --repo-resolve=${{ vars.PROJECT_KEY }}-pypi-virtual
           echo "✅ Configured JFrog pip integration with repository: ${{ vars.PROJECT_KEY }}-pypi-virtual"
 
-      - name: Install test dependencies via JFrog CLI
+      - name: "[Test] Install deps"
         run: |
           python -m pip install --upgrade "pip<25"
           if ! jf pip install -U pytest pytest-cov httpx; then
@@ -170,7 +179,7 @@ jobs:
           fi
           echo "✅ Installed test dependencies"
 
-      - name: Install project dependencies via JFrog CLI
+      - name: "[Build] Install deps"
         run: |
           if ! jf pip install -r requirements.txt; then
             echo "⚠️ jf pip install failed; falling back to public PyPI"
@@ -178,7 +187,7 @@ jobs:
           fi
           echo "✅ Installed project dependencies via JFrog CLI"
 
-      - name: Run tests with coverage
+      - name: "[Test] Run with coverage"
         id: test-coverage
         run: |
           set -euo pipefail
@@ -224,7 +233,7 @@ jobs:
           echo "COVERAGE_PERCENT=$COV" >> $GITHUB_ENV
           echo "coverage_percent=$COV" >> $GITHUB_OUTPUT
 
-      - name: Generate and upload OpenAPI specification
+      - name: "[Artifacts] OpenAPI spec"
         run: |
           set -euo pipefail
           # Use the OIDC-configured JFrog CLI server context; avoid interactive docker login
@@ -241,7 +250,7 @@ jobs:
           jf rt dp --project "${{ vars.PROJECT_KEY }}" "$WORKER_IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local" --build-name="$BUILD_NAME" --build-number "$BUILD_NUMBER"
 
       # Evidence Plan: Package subject – unit-tests (pytest)
-      - name: Prepare coverage evidence template (pytest)
+      - name: "[Evidence] Prepare coverage template"
         run: |
           set -euo pipefail
           echo "📄 Preparing pytest coverage evidence template"
@@ -281,7 +290,7 @@ jobs:
           <p align="right">⏰ Report Generated: <code>${NOW_TS}</code> (UTC)</p>
           EOF
 
-      - name: Populate coverage evidence and attach (pytest)
+      - name: "[Evidence] Attach coverage"
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
         run: |
@@ -340,17 +349,9 @@ jobs:
           envsubst < sast-summary.template.md > sast-summary.md
           echo "✅ SAST scan completed with $(jq '.runs[0].results | length' sast-results.json) findings"
 
-      - name: Set Build Info (canonical)
-        id: set-build-info
-        run: |
-          BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_${{ github.job }}"
-          BUILD_NUMBER="${{ github.run_number }}-${{ github.run_attempt }}"
-          echo "BUILD_NAME=$BUILD_NAME" >> $GITHUB_ENV
-          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
-          echo "build_name=$BUILD_NAME" >> $GITHUB_OUTPUT
-          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+      # Removed duplicate set-build-info step to avoid duplicate id/name conflicts
 
-      - name: Set build variables (two images + generic repos)
+      - name: "[Setup] Build variables (images/repos)"
         run: |
           SERVICE_NAME=$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')
           IMAGE_TAG=$(echo $GITHUB_SHA | head -c7)
@@ -371,43 +372,9 @@ jobs:
           echo "WORKER_IMAGE_NAME=$WORKER_IMAGE_NAME" >> $GITHUB_ENV
           echo "GENERIC_REPO=$GENERIC_REPO" >> $GITHUB_ENV
 
-      - name: Determine SemVer image version
-        id: set-app-version
-        run: |
-          set -euo pipefail
-          SERVICE_NAME=${SERVICE_NAME:-$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')}
-          APPLICATION_KEY="bookverse-$SERVICE_NAME"
-          echo "🔎 Resolving next SemVer for $APPLICATION_KEY"
-          RESP_FILE=$(mktemp)
-          HTTP_STATUS=$(curl -sS -L -o "$RESP_FILE" -w "%{http_code}" \
-            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/" \
-            -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
-            -H "Accept: application/json")
-          if [[ "$HTTP_STATUS" -ge 200 && "$HTTP_STATUS" -lt 300 ]]; then
-            if LATEST_VERSION=$(jq -er '.versions[0].version // empty' "$RESP_FILE" 2>/dev/null); then :; else LATEST_VERSION=""; fi
-          else
-            LATEST_VERSION=""
-          fi
-          rm -f "$RESP_FILE"
-          if [[ -n "$LATEST_VERSION" && "$LATEST_VERSION" != "null" ]]; then
-            MAJOR=$(echo "$LATEST_VERSION" | cut -d. -f1)
-            MINOR=$(echo "$LATEST_VERSION" | cut -d. -f2)
-            PATCH=$(echo "$LATEST_VERSION" | cut -d. -f3 | cut -d- -f1)
-            APP_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
-          else
-            APP_VERSION="1.0.0"
-          fi
-          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
-          echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
-          # Override image tag and names to use SemVer
-          IMAGE_TAG="$APP_VERSION"
-          API_IMAGE_NAME="$REGISTRY_URL/$DOCKER_REPO/$API_PACKAGE_NAME:$IMAGE_TAG"
-          WORKER_IMAGE_NAME="$REGISTRY_URL/$DOCKER_REPO/$WORKER_PACKAGE_NAME:$IMAGE_TAG"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-          echo "API_IMAGE_NAME=$API_IMAGE_NAME" >> $GITHUB_ENV
-          echo "WORKER_IMAGE_NAME=$WORKER_IMAGE_NAME" >> $GITHUB_ENV
+      # Removed duplicate set-app-version step to avoid duplicate id/name conflicts
 
-      - name: Export default flags and env context
+      - name: "[Setup] Export flags/env"
         run: |
           ENABLE_TRIVY_VAL=${ENABLE_TRIVY_VAL:-}
           ENABLE_COSIGN_VAL=${ENABLE_COSIGN_VAL:-}
@@ -416,13 +383,13 @@ jobs:
           echo "CONFIG_SHA=${CONFIG_SHA:-}" >> $GITHUB_ENV
           echo "RES_SHA=${RES_SHA:-}" >> $GITHUB_ENV
 
-      - name: Build and push API image via JFrog CLI
+      - name: "[Build] API image"
         run: |
           jf docker build --pull -t "$API_IMAGE_NAME" -f Dockerfile .
           jf docker push "$API_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
           echo "✅ Built and pushed API image via JFrog CLI"
 
-      - name: Build and push Worker image via JFrog CLI
+      - name: "[Build] Worker image"
         run: |
           jf docker build --pull -t "$WORKER_IMAGE_NAME" -f Dockerfile.worker .
           jf docker push "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
@@ -445,7 +412,7 @@ jobs:
       #       image-ref: ${{ env.WORKER_IMAGE_NAME }}
       #       format: 'json'
       #       output: 'trivy-worker.json'
-      - name: Trivy image scan (simulated)
+      - name: "[Security] Trivy (simulated)"
         run: |
           if [ "${ENABLE_TRIVY:-false}" != "true" ]; then echo "(Trivy disabled)"; exit 0; fi
           echo "🔍 Simulating Trivy scan for images"
@@ -468,14 +435,14 @@ jobs:
       #     if: ${{ vars.ENABLE_COSIGN == 'true' && false }}
       #     run: |
       #       cosign sign --yes ${{ env.WORKER_IMAGE_NAME }}
-      - name: Cosign signatures (simulated)
+      - name: "[Security] Cosign (simulated)"
         run: |
           if [ "${ENABLE_COSIGN:-false}" != "true" ]; then echo "(Cosign disabled)"; exit 0; fi
           echo "🔏 Simulating Cosign OIDC signing for images"
           printf "%s\n" "$API_IMAGE_NAME" "$WORKER_IMAGE_NAME" > cosign-signed-images.txt
           echo "✅ Cosign (simulated) signatures listed in cosign-signed-images.txt"
 
-      - name: Create coverage evidence artifacts
+      - name: "[Evidence] Create coverage artifacts"
         run: |
           cat <<EOF > coverage-evidence.json
           {
@@ -534,7 +501,7 @@ jobs:
           export STATUS STATUS_EMOJI ANALYSIS_TEXT NOW_TS
           envsubst < coverage-evidence.template.md > coverage-evidence.md
 
-      - name: Attach coverage evidence to both images
+      - name: "[Evidence] Attach coverage (images)"
         run: |
           for PKG in "$API_PACKAGE_NAME" "$WORKER_PACKAGE_NAME"; do
             echo "📊 Attaching coverage evidence to $PKG"
@@ -550,7 +517,7 @@ jobs:
           done
           echo "✅ Coverage evidence attached to both images"
 
-      - name: Create SAST evidence artifacts
+      - name: "[Evidence] Create SAST artifacts"
         run: |
           cat <<EOF > sast-evidence.json
           {
@@ -572,7 +539,7 @@ jobs:
           }
           EOF
 
-      - name: Attach SAST evidence to both images
+      - name: "[Evidence] Attach SAST (images)"
         run: |
           for PKG in "$API_PACKAGE_NAME" "$WORKER_PACKAGE_NAME"; do
             echo "🔍 Attaching SAST evidence to $PKG"
@@ -588,7 +555,7 @@ jobs:
           done
           echo "✅ SAST evidence attached to both images"
 
-      - name: Package config and resources bundles
+      - name: "[Artifacts] Package config/resources"
         run: |
           mkdir -p artifacts
           CONFIG_TGZ="artifacts/$SERVICE_NAME-config-$IMAGE_TAG.tar.gz"
@@ -598,7 +565,7 @@ jobs:
           echo "CONFIG_TGZ=$CONFIG_TGZ" >> $GITHUB_ENV
           echo "RES_TGZ=$RES_TGZ" >> $GITHUB_ENV
 
-      - name: Upload generic bundles to Artifactory
+      - name: "[Artifacts] Upload bundles"
         run: |
           if [ -f "$CONFIG_TGZ" ]; then
             jf rt u "$CONFIG_TGZ" "$GENERIC_REPO/$SERVICE_NAME/config/$IMAGE_TAG/" --flat=true \
@@ -610,7 +577,7 @@ jobs:
           fi
           echo "✅ Uploaded generic bundles (if present)"
 
-      - name: Compute checksums for generic bundles
+      - name: "[Artifacts] Checksums"
         run: |
           set -e
           if [ -f "$CONFIG_TGZ" ]; then
@@ -626,7 +593,7 @@ jobs:
           echo "CONFIG_SHA=$CONFIG_SHA" >> $GITHUB_ENV
           echo "RES_SHA=$RES_SHA" >> $GITHUB_ENV
 
-      - name: Create evidence for generic bundles
+      - name: "[Evidence] Create bundle evidence"
         run: |
           cat <<EOF > generic-bundles-evidence.json
           {
@@ -656,7 +623,7 @@ jobs:
           export NOW_TS
           envsubst < generic-bundles-evidence.template.md > generic-bundles-evidence.md
 
-      - name: Attach evidence to generic bundles (config)
+      - name: "[Evidence] Attach (config bundle)"
         run: |
           if [ -z "${CONFIG_SHA:-}" ]; then echo "(No config bundle checksum; skipping)"; exit 0; fi
           jf evd create-evidence \
@@ -669,7 +636,7 @@ jobs:
             --project "${{ vars.PROJECT_KEY }}" \
             --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ Generic evidence attachment failed (config)"
 
-      - name: Attach evidence to generic bundles (resources)
+      - name: "[Evidence] Attach (resources bundle)"
         run: |
           if [ -z "${RES_SHA:-}" ]; then echo "(No resources bundle checksum; skipping)"; exit 0; fi
           jf evd create-evidence \
@@ -682,13 +649,13 @@ jobs:
             --project "${{ vars.PROJECT_KEY }}" \
             --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ Generic evidence attachment failed (resources)"
 
-      - name: Publish Build Info
+      - name: "[Build Info] Publish"
         run: |
           jf rt bag --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
           jf rt bce --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
           jf rt bp --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
 
-      - name: Generate CI summary
+      - name: "[Summary] CI"
         run: |
           echo "## 🏗️ Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -709,7 +676,7 @@ jobs:
           echo "- Evidence attached to generic bundles" >> $GITHUB_STEP_SUMMARY
 
       # Evidence Plan: Build subject – code-quality (SonarQube)
-      - name: Prepare Sonar quality gate template (code-quality)
+      - name: "[Evidence] Prepare quality gate"
         run: |
           set -euo pipefail
           echo "📄 Preparing quality gate template"
@@ -729,13 +696,13 @@ jobs:
           * **Checked At (UTC)**: `${NOW_TS}`
           EOF
 
-      - name: Publish Build Info
+      - name: "[Build Info] Publish"
         run: |
           jf rt bag --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
           jf rt bce --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
           jf rt bp --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
 
-      - name: Populate quality gate template and attach (code-quality)
+      - name: "[Evidence] Attach quality gate"
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
         run: |
@@ -763,7 +730,7 @@ jobs:
             --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ Quality gate evidence attachment failed"
 
       # Evidence Plan: Build subject – license-compliance (FOSSA)
-      - name: Prepare FOSSA license compliance template (license-compliance)
+      - name: "[Evidence] Prepare license template"
         run: |
           set -euo pipefail
           echo "📄 Preparing license compliance template"
@@ -783,7 +750,7 @@ jobs:
           * **Checked At (UTC)**: `${NOW_TS}`
           EOF
           
-      - name: Populate license template and attach (license-compliance)
+      - name: "[Evidence] Attach license compliance"
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
         run: |
@@ -820,10 +787,10 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout
+      - name: "[Setup] Checkout"
         uses: actions/checkout@v4
 
-      - name: Setup JFrog CLI (OIDC)
+      - name: "[Setup] JFrog CLI (OIDC)"
         uses: jfrog/setup-jfrog-cli@v4
         env:
           JF_URL: ${{ vars.JFROG_URL }}
@@ -838,11 +805,11 @@ jobs:
           disable-auto-evidence-collection: false
           oidc-audience: ${{ vars.JFROG_URL }}
 
-      - name: Configure JFrog CLI
+      - name: "[Setup] JFrog config"
         run: |
           jf c show || true
 
-      - name: Set AppTrust variables and determine version (SemVer)
+      - name: "[Setup] AppTrust variables"
         run: |
           SERVICE_NAME=$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')
           APPLICATION_KEY="bookverse-$SERVICE_NAME"
@@ -857,7 +824,7 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
           echo "✅ AppTrust variables set: $APPLICATION_KEY@$APP_VERSION (build $SERVICE_NAME#$IMAGE_TAG)"
 
-      - name: Create application version
+      - name: "[Release] Create application version"
         run: |
           # Ensure no shell xtrace is leaking or causing unintended masking
           set +x || true
@@ -961,7 +928,7 @@ jobs:
           echo "✅ Application version created: $APPLICATION_KEY@$APP_VERSION"
 
       # Evidence Plan: App UNASSIGNED – slsa-provenance and jira-tickets (gate to DEV)
-      - name: Prepare UNASSIGNED evidence templates (SLSA, Jira)
+      - name: "[Evidence] Prepare UNASSIGNED templates"
         run: |
           set -euo pipefail
           echo "📄 Preparing SLSA and Jira templates"
@@ -995,7 +962,7 @@ jobs:
           - ${T3} — ${T3_TYPE}
           EOF
 
-      - name: Populate UNASSIGNED templates and attach (SLSA, Jira)
+      - name: "[Evidence] Attach UNASSIGNED (SLSA, Jira)"
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
         run: |
@@ -1055,7 +1022,7 @@ jobs:
             --project "${{ vars.PROJECT_KEY }}" \
             --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ Jira evidence attach failed"
 
-      - name: Attach SDLC evidence to application version
+      - name: "[Evidence] Attach SDLC"
         run: |
           JIRA_TICKETS=("BOOK-$(((RANDOM % 900) + 100))" "BOOK-$(((RANDOM % 900) + 100))" "BOOK-$(((RANDOM % 900) + 100))")
           TICKET_TYPES=("Bug Fix" "Feature" "Improvement")
@@ -1104,7 +1071,7 @@ jobs:
             --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ SDLC evidence attachment failed"
           echo "✅ SDLC evidence attached"
 
-      - name: Generate AppTrust summary
+      - name: "[Summary] AppTrust"
         run: |
           echo "## 🎯 AppTrust Integration Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

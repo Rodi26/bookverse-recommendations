@@ -1,4 +1,4 @@
-name: Rollback Recommendations Version (PROD)
+name: Rollback
 
 on:
   workflow_dispatch:
@@ -9,22 +9,27 @@ on:
 
 jobs:
   rollback:
+    name: Rollback
     runs-on: ubuntu-latest
+    env:
+      JFROG_URL: ${{ vars.JFROG_URL }}
+      JFROG_ADMIN_TOKEN: ${{ secrets.JFROG_ADMIN_TOKEN }}
     steps:
-      - name: Checkout
+      - name: "[Setup] Checkout"
         uses: actions/checkout@v4
 
-      - name: Export AppTrust context
+      - name: "[Setup] AppTrust context"
         run: |
-          echo "APPTRUST_BASE_URL=${{ vars.APPTRUST_BASE_URL }}" >> $GITHUB_ENV
-          echo "APPTRUST_ACCESS_TOKEN=${{ secrets.APPTRUST_ACCESS_TOKEN }}" >> $GITHUB_ENV
+          BASE="${JFROG_URL%/}"
+          echo "APPTRUST_BASE_URL=${BASE}/apptrust/api/v1" >> $GITHUB_ENV
+          echo "APPTRUST_ACCESS_TOKEN=${JFROG_ADMIN_TOKEN}" >> $GITHUB_ENV
 
-      - name: Setup Python
+      - name: "[Setup] Python"
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Run rollback
+      - name: "[Rollback] Execute"
         run: |
           python scripts/apptrust_rollback.py \
             --version "${{ github.event.inputs.version }}" \

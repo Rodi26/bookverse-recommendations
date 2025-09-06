@@ -95,3 +95,9 @@ python -m pytest -v
 - `Indexer` fetches a snapshot of books and transactions from `bookverse-inventory`, builds inverted indices for authors/genres, and derives a simple popularity prior from recent `stock_out` transactions.
 - `score_simple` combines genre/author overlap with the popularity prior (weights from `config/recommendations-settings.yaml`).
 - APIs in `app/api.py` expose similar, personalized, and trending endpoints, with a TTL cache configurable via `RECO_TTL_SECONDS`.
+
+## Workflows
+
+- [`ci.yml`](.github/workflows/ci.yml) — CI: build API/worker images, run tests, upload config/resources artifacts; optional security/signing steps.
+- [`promote.yml`](.github/workflows/promote.yml) — Promote the recommendations app version through stages with evidence.
+- [`rollback.yml`](.github/workflows/rollback.yml) — Roll back a promoted recommendations application version (demo utility).
