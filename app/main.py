@@ -9,11 +9,13 @@ app = FastAPI(title="BookVerse Recommendations Service")
 
 @app.get("/health")
 def health():
+    """Basic health check used by probes and CI."""
     return {"status": "ok"}
 
 
 @app.get("/info")
 def info():
+    """Expose build and configuration metadata useful for diagnostics."""
     image_tag = os.getenv("IMAGE_TAG", os.getenv("GIT_SHA", "unknown"))
     app_version = os.getenv("APP_VERSION", "unknown")
     settings_path = os.getenv("RECOMMENDATIONS_SETTINGS_PATH", "config/recommendations-settings.yaml")

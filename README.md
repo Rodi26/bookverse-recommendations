@@ -86,4 +86,12 @@ Optional steps (guarded by repo variables/secrets):
 
 - Run unit tests locally:
 
+```bash
+python -m pytest -v
 ```
+
+## How it works
+
+- `Indexer` fetches a snapshot of books and transactions from `bookverse-inventory`, builds inverted indices for authors/genres, and derives a simple popularity prior from recent `stock_out` transactions.
+- `score_simple` combines genre/author overlap with the popularity prior (weights from `config/recommendations-settings.yaml`).
+- APIs in `app/api.py` expose similar, personalized, and trending endpoints, with a TTL cache configurable via `RECO_TTL_SECONDS`.

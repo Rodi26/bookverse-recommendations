@@ -7,11 +7,14 @@ INVENTORY_BASE_URL = os.getenv("INVENTORY_BASE_URL", "http://inventory")
 
 
 class InventoryClient:
+    """Minimal HTTP client for the inventory service used by recommendations."""
+
     def __init__(self, base_url: str | None = None, timeout_seconds: float = 5.0):
         self.base_url = base_url or INVENTORY_BASE_URL
         self.timeout = timeout_seconds
 
     def _client(self) -> httpx.Client:
+        """Create a short-lived httpx client instance."""
         return httpx.Client(base_url=self.base_url, timeout=self.timeout)
 
     def list_books(self, per_page: int = 1000) -> List[Dict[str, Any]]:

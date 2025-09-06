@@ -11,6 +11,7 @@ RECO_TTL_SECONDS = int(os.getenv("RECO_TTL_SECONDS", str(get_ttl_seconds())))  #
 
 
 class CatalogIndices:
+    """In-memory indices for recommendation candidate search."""
     def __init__(self) -> None:
         self.book_by_id: Dict[str, BookLite] = {}
         self.genre_to_book_ids: Dict[str, Set[str]] = {}
@@ -20,6 +21,8 @@ class CatalogIndices:
 
 
 class Indexer:
+    """Build and serve catalog indices with a simple TTL cache."""
+
     def __init__(self, client: InventoryClient | None = None) -> None:
         self.client = client or InventoryClient()
         self.indices = CatalogIndices()

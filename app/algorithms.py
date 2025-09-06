@@ -4,6 +4,10 @@ from .settings import get_weights, filter_out_of_stock_enabled
 
 
 def compute_popularity_normalized(stock_out_counts: Dict[str, int]) -> Dict[str, float]:
+    """Normalize raw stock_out counts to the [0,1] range.
+
+    Returns an empty mapping when no counts are provided.
+    """
     if not stock_out_counts:
         return {}
     max_count = max(stock_out_counts.values()) or 1
@@ -11,6 +15,12 @@ def compute_popularity_normalized(stock_out_counts: Dict[str, int]) -> Dict[str,
 
 
 def score_simple(seed_books: Iterable[BookLite], candidate: BookLite, popularity: Dict[str, float]) -> Tuple[float, Dict[str, float]]:
+    """Score a candidate book given seed books and a popularity prior.
+
+    Factors are a weighted sum of genre overlap, author overlap, and popularity.
+    When the `filter_out_of_stock_enabled` flag is on, out-of-stock candidates
+    receive a zero score.
+    """
     seed_genres = set(g for b in seed_books for g in b.genres)
     seed_authors = set(a for b in seed_books for a in b.authors)
     if filter_out_of_stock_enabled() and not candidate.availability.in_stock:
@@ -26,6 +36,7 @@ def score_simple(seed_books: Iterable[BookLite], candidate: BookLite, popularity
 
 
 def build_recommendation_item(b: BookLite, score: float, factors: Dict[str, float]) -> RecommendationItem:
+    """Construct a `RecommendationItem` from a `BookLite` and score details."""
     return RecommendationItem(
         id=b.id,
         title=b.title,
