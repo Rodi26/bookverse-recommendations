@@ -930,9 +930,9 @@ jobs:
           HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
             "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false" \
             -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
-            -H "Content-Type: application/json" \
-          #   -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
-            -d "$APP_VERSION_PAYLOAD" \
+              -H "Content-Type: application/json" \
+              -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
+              -d "$APP_VERSION_PAYLOAD" \
             --fail-with-body )
           echo "🔢 HTTP Status: $HTTP_STATUS"
           echo "📨 Response Body:"; cat "$RESP_BODY" || true; echo
