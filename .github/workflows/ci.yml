@@ -382,7 +382,7 @@ jobs:
           if [[ -n "$last_worker" ]]; then IFS='.' read -r ma mi pa <<<"$last_worker"; pa=$((pa+1)); WORKER_IMAGE_TAG="$ma.$mi.$pa"; else WORKER_IMAGE_TAG="1.0.$(( (RANDOM % 5)+1 ))"; fi
           API_IMAGE_NAME="$REGISTRY_URL/$DOCKER_REPO/$API_PACKAGE_NAME:$API_IMAGE_TAG"
           WORKER_IMAGE_NAME="$REGISTRY_URL/$DOCKER_REPO/$WORKER_PACKAGE_NAME:$WORKER_IMAGE_TAG"
-          GENERIC_REPO="${{ vars.PROJECT_KEY }}-generic-internal-local"
+          GENERIC_REPO="${{ vars.PROJECT_KEY }}-${SERVICE_NAME}-internal-generic-nonprod-local"
           echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
           echo "IMAGE_TAG=$API_IMAGE_TAG" >> $GITHUB_ENV
           echo "REGISTRY_URL=$REGISTRY_URL" >> $GITHUB_ENV
