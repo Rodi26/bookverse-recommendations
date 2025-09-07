@@ -409,13 +409,21 @@ jobs:
       - name: "[Build] API image"
         run: |
           jf docker build --pull -t "$API_IMAGE_NAME" -f Dockerfile .
-          jf docker push "$API_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          # TEMP: Artifactory < 7.33.3 doesn't support 'jf docker push'.
+          # Re-enable the original push line below once Artifactory is upgraded.
+          # jf docker push "$API_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
+          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$API_IMAGE_NAME" "$DOCKER_REPO" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
           echo "✅ Built and pushed API image via JFrog CLI"
 
       - name: "[Build] Worker image"
         run: |
           jf docker build --pull -t "$WORKER_IMAGE_NAME" -f Dockerfile.worker .
-          jf docker push "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          # TEMP: Artifactory < 7.33.3 doesn't support 'jf docker push'.
+          # Re-enable the original push line below once Artifactory is upgraded.
+          # jf docker push "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
+          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$WORKER_IMAGE_NAME" "$DOCKER_REPO" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
           echo "✅ Built and pushed Worker image via JFrog CLI"
 
       # Optional: Trivy image scan (simulated)
