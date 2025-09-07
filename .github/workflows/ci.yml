@@ -93,7 +93,7 @@ jobs:
           SERVICE_NAME=$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')
           IMAGE_TAG=$(echo $GITHUB_SHA | head -c7)
           REGISTRY_URL="${{ vars.DOCKER_REGISTRY }}"
-          IMAGE_NAME="${REGISTRY_URL}/${{ vars.PROJECT_KEY }}-${SERVICE_NAME}-docker-internal-local/${SERVICE_NAME}:${IMAGE_TAG}"
+          IMAGE_NAME="${REGISTRY_URL}/${{ vars.PROJECT_KEY }}-${SERVICE_NAME}-internal-docker-nonprod-local/${SERVICE_NAME}:${IMAGE_TAG}"
 
           echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
           APPLICATION_KEY="bookverse-$SERVICE_NAME"
@@ -136,7 +136,7 @@ jobs:
           fi
           REGISTRY_URL=${REGISTRY_URL:-${{ vars.DOCKER_REGISTRY }}}
           IMAGE_TAG="$APP_VERSION"
-          IMAGE_NAME="$REGISTRY_URL/${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local/$SERVICE_NAME:$IMAGE_TAG"
+          IMAGE_NAME="$REGISTRY_URL/${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local/$SERVICE_NAME:$IMAGE_TAG"
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
           echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
@@ -253,15 +253,15 @@ jobs:
           # Re-enable the original push line below once Artifactory is upgraded.
           # jf docker push "$IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
           # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
-          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
           # Build and push worker image
-          WORKER_IMAGE_NAME="$REGISTRY_URL/${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local/${SERVICE_NAME}-worker:$IMAGE_TAG"
+          WORKER_IMAGE_NAME="$REGISTRY_URL/${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local/${SERVICE_NAME}-worker:$IMAGE_TAG"
           jf docker build --pull -t "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" -f Dockerfile.worker .
           # TEMP: Artifactory < 7.33.3 doesn't support 'jf docker push'.
           # Re-enable the original push line below once Artifactory is upgraded.
           # jf docker push "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
           # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
-          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$WORKER_IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$WORKER_IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
 
       # Evidence Plan: Package subject – unit-tests (pytest)
       - name: "[Evidence] Prepare coverage template"
@@ -370,7 +370,7 @@ jobs:
           SERVICE_NAME=$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')
           IMAGE_TAG=$(echo $GITHUB_SHA | head -c7)
           REGISTRY_URL="${{ vars.DOCKER_REGISTRY }}"
-          DOCKER_REPO="${{ vars.PROJECT_KEY }}-${SERVICE_NAME}-docker-internal-local"
+          DOCKER_REPO="${{ vars.PROJECT_KEY }}-${SERVICE_NAME}-internal-docker-nonprod-local"
           API_PACKAGE_NAME="${SERVICE_NAME}"
           WORKER_PACKAGE_NAME="${SERVICE_NAME}-worker"
           # Compute next SemVer tags for API and Worker
