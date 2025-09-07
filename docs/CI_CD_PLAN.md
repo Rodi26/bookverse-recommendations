@@ -39,11 +39,9 @@ Define the complete software delivery lifecycle for the Recommendations service:
   - `secrets.JFROG_ACCESS_TOKEN` (or OIDC with server-side trust)
   - `secrets.EVIDENCE_PRIVATE_KEY` (optional if no server-side key alias)
 - Artifactory repositories (project-scoped):
-  - `${PROJECT_KEY}-recommendations-docker-internal-local`
-  - `${PROJECT_KEY}-recommendations-docker-qa-local`
-  - `${PROJECT_KEY}-recommendations-docker-staging-local`
-  - `${PROJECT_KEY}-recommendations-docker-prod-local`
-  - Optional: `${PROJECT_KEY}-recommendations-generic-local` for config/resources
+  - `${PROJECT_KEY}-recommendations-internal-docker-nonprod-local`
+  - `${PROJECT_KEY}-recommendations-internal-docker-release-local`
+  - Optional: `${PROJECT_KEY}-recommendations-internal-generic-nonprod-local` for config/resources
 
 ## Target model
 
@@ -80,8 +78,8 @@ Define the complete software delivery lifecycle for the Recommendations service:
 - Compute `IMAGE_TAG` = short SHA
 - `REGISTRY_URL` = `${JFROG_URL}` stripped of scheme
 - Build:
-  - `${REGISTRY_URL}/${PROJECT_KEY}-recommendations-docker-internal-local/recommendations-api:${IMAGE_TAG}`
-  - `${REGISTRY_URL}/${PROJECT_KEY}-recommendations-docker-internal-local/recommendations-worker:${IMAGE_TAG}`
+  - `${REGISTRY_URL}/${PROJECT_KEY}-recommendations-internal-docker-nonprod-local/recommendations-api:${IMAGE_TAG}`
+  - `${REGISTRY_URL}/${PROJECT_KEY}-recommendations-internal-docker-nonprod-local/recommendations-worker:${IMAGE_TAG}`
 - Push via `jf rt dp` for both and associate with build name/number
 - Optional: Cosign OIDC sign both images
 
@@ -92,13 +90,13 @@ Define the complete software delivery lifecycle for the Recommendations service:
 - Create JSON predicates and markdown summaries
 - Attach with `jf evd create-evidence` using:
   - `--package-name recommendations-api|recommendations-worker`
-  - `--package-repo-name ${PROJECT_KEY}-recommendations-docker-internal-local`
+  - `--package-repo-name ${PROJECT_KEY}-recommendations-internal-docker-nonprod-local`
   - `--package-version ${IMAGE_TAG}`
   - `--predicate-type "Test Coverage"|"SAST Scan"`
   - Use the exact predicate type names and JSON/Markdown formats used in Inventory (`coverage-evidence.json`/`coverage-evidence.md`, `sast-evidence.json`/`sast-summary.md`).
 
 7) Optional: publish config/resources as versioned generic artifacts
-- Tar/GZip and upload to `${PROJECT_KEY}-recommendations-generic-local/recommendations-config/${IMAGE_TAG}/...`
+- Tar/GZip and upload to `${PROJECT_KEY}-recommendations-internal-generic-nonprod-local/recommendations-config/${IMAGE_TAG}/...`
 - Attach a short evidence document referencing checksums and contents
 
 8) CI summary

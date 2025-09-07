@@ -160,7 +160,8 @@ release_version() {
     local service_name
     service_name="${APPLICATION_KEY#${PROJECT_KEY}-}"
     local repo_docker
-    repo_docker="${PROJECT_KEY}-${service_name}-docker-release-local"
+    # Non-platform services must use internal, release repo for PROD
+    repo_docker="${PROJECT_KEY}-${service_name}-internal-docker-release-local"
     payload=$(printf '{"promotion_type":"move","included_repository_keys":["%s"]}' "$repo_docker")
   fi
   http_status=$(curl -sS -L -o "$resp_body" -w "%{http_code}" -X POST \
