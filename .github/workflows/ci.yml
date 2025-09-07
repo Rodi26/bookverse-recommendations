@@ -249,13 +249,19 @@ jobs:
           jf c use "$SERVER_ID" || true
           # Build and push API image
           jf docker build --pull -t "$IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" -f Dockerfile .
-          jf docker push "$IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
-          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local" --build-name="$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          # TEMP: Artifactory < 7.33.3 doesn't support 'jf docker push'.
+          # Re-enable the original push line below once Artifactory is upgraded.
+          # jf docker push "$IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
+          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
           # Build and push worker image
           WORKER_IMAGE_NAME="$REGISTRY_URL/${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local/${SERVICE_NAME}-worker:$IMAGE_TAG"
           jf docker build --pull -t "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" -f Dockerfile.worker .
-          jf docker push "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
-          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$WORKER_IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local" --build-name="$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          # TEMP: Artifactory < 7.33.3 doesn't support 'jf docker push'.
+          # Re-enable the original push line below once Artifactory is upgraded.
+          # jf docker push "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
+          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$WORKER_IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-docker-internal-local" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
 
       # Evidence Plan: Package subject – unit-tests (pytest)
       - name: "[Evidence] Prepare coverage template"
@@ -367,11 +373,18 @@ jobs:
           DOCKER_REPO="${{ vars.PROJECT_KEY }}-${SERVICE_NAME}-docker-internal-local"
           API_PACKAGE_NAME="${SERVICE_NAME}"
           WORKER_PACKAGE_NAME="${SERVICE_NAME}-worker"
-          API_IMAGE_NAME="$REGISTRY_URL/$DOCKER_REPO/$API_PACKAGE_NAME:$IMAGE_TAG"
-          WORKER_IMAGE_NAME="$REGISTRY_URL/$DOCKER_REPO/$WORKER_PACKAGE_NAME:$IMAGE_TAG"
+          # Compute next SemVer tags for API and Worker
+          JF_URL='${{ vars.JFROG_URL }}'
+          TOKEN='${{ secrets.JFROG_ADMIN_TOKEN }}'
+          list_next() { local name="$1"; local out; out="$(mktemp)"; local url="$JF_URL/artifactory/api/docker/$DOCKER_REPO/v2/$name/tags/list"; local code; code=$(curl -sS -L -o "$out" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "$url" || echo 000); if [[ "$code" -ge 200 && "$code" -lt 300 ]]; then jq -r '[.tags[]? | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by([ (split(".")[0]|tonumber),(split(".")[1]|tonumber),(split(".")[2]|tonumber) ]) | (last // empty)' "$out"; else echo ""; fi; rm -f "$out"; }
+          last_api=$(list_next "$API_PACKAGE_NAME"); last_worker=$(list_next "$WORKER_PACKAGE_NAME")
+          if [[ -n "$last_api" ]]; then IFS='.' read -r ma mi pa <<<"$last_api"; pa=$((pa+1)); API_IMAGE_TAG="$ma.$mi.$pa"; else API_IMAGE_TAG="1.0.$(( (RANDOM % 5)+1 ))"; fi
+          if [[ -n "$last_worker" ]]; then IFS='.' read -r ma mi pa <<<"$last_worker"; pa=$((pa+1)); WORKER_IMAGE_TAG="$ma.$mi.$pa"; else WORKER_IMAGE_TAG="1.0.$(( (RANDOM % 5)+1 ))"; fi
+          API_IMAGE_NAME="$REGISTRY_URL/$DOCKER_REPO/$API_PACKAGE_NAME:$API_IMAGE_TAG"
+          WORKER_IMAGE_NAME="$REGISTRY_URL/$DOCKER_REPO/$WORKER_PACKAGE_NAME:$WORKER_IMAGE_TAG"
           GENERIC_REPO="${{ vars.PROJECT_KEY }}-generic-internal-local"
           echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          echo "IMAGE_TAG=$API_IMAGE_TAG" >> $GITHUB_ENV
           echo "REGISTRY_URL=$REGISTRY_URL" >> $GITHUB_ENV
           echo "DOCKER_REPO=$DOCKER_REPO" >> $GITHUB_ENV
           echo "API_PACKAGE_NAME=$API_PACKAGE_NAME" >> $GITHUB_ENV
@@ -379,6 +392,8 @@ jobs:
           echo "API_IMAGE_NAME=$API_IMAGE_NAME" >> $GITHUB_ENV
           echo "WORKER_IMAGE_NAME=$WORKER_IMAGE_NAME" >> $GITHUB_ENV
           echo "GENERIC_REPO=$GENERIC_REPO" >> $GITHUB_ENV
+          echo "API_IMAGE_TAG=$API_IMAGE_TAG" >> $GITHUB_ENV
+          echo "WORKER_IMAGE_TAG=$WORKER_IMAGE_TAG" >> $GITHUB_ENV
 
       # Removed duplicate set-app-version step to avoid duplicate id/name conflicts
 
@@ -511,18 +526,9 @@ jobs:
 
       - name: "[Evidence] Attach coverage (images)"
         run: |
-          for PKG in "$API_PACKAGE_NAME" "$WORKER_PACKAGE_NAME"; do
-            echo "📊 Attaching coverage evidence to $PKG"
-            jf evd create-evidence \
-              --predicate coverage-evidence.json \
-              --markdown coverage-evidence.md \
-              --predicate-type "https://pytest.org/evidence/results/v1" \
-              --package-name "$PKG" \
-              --package-repo-name "$DOCKER_REPO" \
-              --package-version "$IMAGE_TAG" \
-              --project "${{ vars.PROJECT_KEY }}" \
-              --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ Coverage evidence attachment failed for $PKG"
-          done
+          echo "📊 Attaching coverage evidence"
+          jf evd create-evidence --predicate coverage-evidence.json --markdown coverage-evidence.md --predicate-type "https://pytest.org/evidence/results/v1" --package-name "$API_PACKAGE_NAME" --package-repo-name "$DOCKER_REPO" --package-version "$API_IMAGE_TAG" --project "${{ vars.PROJECT_KEY }}" --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ Coverage evidence attachment failed for $API_PACKAGE_NAME"
+          jf evd create-evidence --predicate coverage-evidence.json --markdown coverage-evidence.md --predicate-type "https://pytest.org/evidence/results/v1" --package-name "$WORKER_PACKAGE_NAME" --package-repo-name "$DOCKER_REPO" --package-version "$WORKER_IMAGE_TAG" --project "${{ vars.PROJECT_KEY }}" --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ Coverage evidence attachment failed for $WORKER_PACKAGE_NAME"
           echo "✅ Coverage evidence attached to both images"
 
       - name: "[Evidence] Create SAST artifacts"
@@ -549,18 +555,9 @@ jobs:
 
       - name: "[Evidence] Attach SAST (images)"
         run: |
-          for PKG in "$API_PACKAGE_NAME" "$WORKER_PACKAGE_NAME"; do
-            echo "🔍 Attaching SAST evidence to $PKG"
-            jf evd create-evidence \
-              --predicate sast-evidence.json \
-              --markdown sast-summary.md \
-              --predicate-type "https://checkmarx.com/evidence/sast/v1.1" \
-              --package-name "$PKG" \
-              --package-repo-name "$DOCKER_REPO" \
-              --package-version "$IMAGE_TAG" \
-              --project "${{ vars.PROJECT_KEY }}" \
-              --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ SAST evidence attachment failed for $PKG"
-          done
+          echo "🔍 Attaching SAST evidence"
+          jf evd create-evidence --predicate sast-evidence.json --markdown sast-summary.md --predicate-type "https://checkmarx.com/evidence/sast/v1.1" --package-name "$API_PACKAGE_NAME" --package-repo-name "$DOCKER_REPO" --package-version "$API_IMAGE_TAG" --project "${{ vars.PROJECT_KEY }}" --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ SAST evidence attachment failed for $API_PACKAGE_NAME"
+          jf evd create-evidence --predicate sast-evidence.json --markdown sast-summary.md --predicate-type "https://checkmarx.com/evidence/sast/v1.1" --package-name "$WORKER_PACKAGE_NAME" --package-repo-name "$DOCKER_REPO" --package-version "$WORKER_IMAGE_TAG" --project "${{ vars.PROJECT_KEY }}" --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" || echo "⚠️ SAST evidence attachment failed for $WORKER_PACKAGE_NAME"
           echo "✅ SAST evidence attached to both images"
 
       - name: "[Artifacts] Package config/resources"
@@ -838,30 +835,7 @@ jobs:
           echo "🚀 Creating AppTrust application version: $APP_VERSION"
 
           # Determine application version tag - simulate real development environment
-          # Array of realistic single tags for demo (aligned with inventory)
-          TAG_OPTIONS=(
-            "release"
-            "hotfix"
-            "feature"
-            "bugfix"
-            "enhancement"
-            "security"
-            "performance"
-            "refactor"
-            "experimental"
-            "maintenance"
-            "integration"
-            "documentation"
-            "stable"
-            "beta"
-            "alpha"
-            "critical"
-            "patch"
-            "minor"
-            "major"
-            "cleanup"
-          )
-          # Randomly select single tag based on run number for consistency
+          TAG_OPTIONS=(release hotfix feature bugfix enhancement security performance refactor experimental maintenance integration documentation stable beta alpha critical patch minor major cleanup)
           TAG_INDEX=$((${GITHUB_RUN_NUMBER:-0} % ${#TAG_OPTIONS[@]}))
           APP_TAG="${TAG_OPTIONS[$TAG_INDEX]}"
           echo "🏷️ Application Version Tag (demo simulation): $APP_TAG"
@@ -870,6 +844,7 @@ jobs:
           APP_VERSION_PAYLOAD=$(cat << EOF
           {
             "version": "$APP_VERSION",
+            "tag": "$APP_TAG",
             "sources": {"builds": [{"name": "$BUILD_NAME", "number": "$BUILD_NUMBER", "repository_key": "${{ vars.PROJECT_KEY }}-build-info", "include_dependencies": true}]}
           }
           EOF
