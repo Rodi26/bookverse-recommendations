@@ -248,25 +248,21 @@ jobs:
 
       - name: "[Artifacts] OpenAPI spec"
         run: |
+          export DOCKER_BUILDKIT=0
+          export DOCKER_DEFAULT_PLATFORM=linux/amd64
+          echo "DOCKER_DEFAULT_PLATFORM=$DOCKER_DEFAULT_PLATFORM"
+          echo "DOCKER_BUILDKIT=$DOCKER_BUILDKIT"
           set -euo pipefail
           # Use the OIDC-configured JFrog CLI server context; avoid interactive docker login
           SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
           jf c use "$SERVER_ID" || true
           # Build and push API image
           jf docker build --pull -t "$IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" -f Dockerfile .
-          # TEMP: Artifactory < 7.33.3 doesn't support 'jf docker push'.
-          # Re-enable the original push line below once Artifactory is upgraded.
-          # jf docker push "$IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
-          # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
-          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          echo "(skip) push API image in OpenAPI spec step"
           # Build and push worker image
           WORKER_IMAGE_NAME="$REGISTRY_URL/${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local/${SERVICE_NAME}-worker:$IMAGE_TAG"
           jf docker build --pull -t "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" -f Dockerfile.worker .
-          # TEMP: Artifactory < 7.33.3 doesn't support 'jf docker push'.
-          # Re-enable the original push line below once Artifactory is upgraded.
-          # jf docker push "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
-          # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
-          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$WORKER_IMAGE_NAME" "${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          echo "(skip) push Worker image in OpenAPI spec step"
 
       # Evidence Plan: Package subject – unit-tests (pytest)
       - name: "[Evidence] Prepare coverage template"
