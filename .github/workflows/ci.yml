@@ -1,10 +1,8 @@
 name: CI
 
-env:
-
 # NOTE: Manual trigger only during development phase
 # Will be changed to automatic triggers (push/PR) when demo is ready
-on:
+'on':
   workflow_dispatch:
     inputs:
       reason:
@@ -12,7 +10,7 @@ on:
         required: false
         default: 'Manual testing'
         type: string
-      
+
 
 jobs:
   build-test-publish:
@@ -69,6 +67,8 @@ jobs:
           echo "REGISTRY_URL=$REGISTRY_URL" >> $GITHUB_ENV
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
 
+      # Duplicate OIDC mint step removed to ensure single mint per job
+
       - name: "[Setup] Determine SemVer"
         id: set-app-version
         run: |
@@ -79,7 +79,8 @@ jobs:
           RESP_FILE=$(mktemp)
           HTTP_STATUS=$(curl -sS -L -o "$RESP_FILE" -w "%{http_code}" \
             "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/" \
-            -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+            -H "Authorization: Bearer $JF_ACCESS_TOKEN" \
+            -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
             -H "Accept: application/json")
           if [[ "$HTTP_STATUS" -ge 200 && "$HTTP_STATUS" -lt 300 ]]; then
             if LATEST_VERSION=$(jq -er '.versions[0].version // empty' "$RESP_FILE" 2>/dev/null); then
@@ -818,6 +819,43 @@ jobs:
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "✅ AppTrust variables set: $APPLICATION_KEY@$APP_VERSION (build $SERVICE_NAME#$IMAGE_TAG)"
 
+      - name: "[Auth] Persist JF access token (OIDC → JFrog)"
+        env:
+          JF_URL: ${{ vars.JFROG_URL }}
+          PROJECT: ${{ vars.PROJECT_KEY }}
+          PROVIDER_NAME: bookverse-recommendations-github
+        run: |
+          set -euo pipefail
+          if ! command -v jq >/dev/null 2>&1; then sudo apt-get update -y && sudo apt-get install -y jq; fi
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "❌ Missing GitHub OIDC request env vars" >&2; exit 1; fi
+          GH_ID_TOKEN=$(curl -sS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${JF_URL}" | jq -r .value)
+          if [[ -z "$GH_ID_TOKEN" || "$GH_ID_TOKEN" == "null" ]]; then echo "❌ Failed to fetch GitHub ID token" >&2; exit 1; fi
+          PAYLOAD=$(jq -n --arg jwt "$GH_ID_TOKEN" \
+            --arg provider_name "$PROVIDER_NAME" \
+            --arg project_key "$PROJECT" \
+            --arg job_id "${{ github.job }}" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg repo "https://github.com/${{ github.repository }}" \
+            --arg revision "${{ github.sha }}" \
+            --arg branch "${{ github.ref_name }}" \
+            '{
+              grant_type:"urn:ietf:params:oauth:grant-type:token-exchange",
+              subject_token_type:"urn:ietf:params:oauth:token-type:id_token",
+              subject_token:$jwt,
+              provider_name:$provider_name,
+              project_key:$project_key,
+              job_id:$job_id,
+              run_id:$run_id,
+              repo:$repo,
+              revision:$revision,
+              branch:$branch
+            }')
+          TOKEN=$(curl -sS -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$JF_URL/access/api/v1/oidc/token" | jq -r .access_token)
+          if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then echo "❌ Failed to exchange OIDC token" >&2; exit 1; fi
+          echo "JF_ACCESS_TOKEN=$TOKEN" >> $GITHUB_ENV
+
       - name: "[Release] Create application version"
         run: |
           # Ensure no shell xtrace is leaking or causing unintended masking
@@ -855,10 +893,10 @@ jobs:
           #   -H "Accept: application/json" \
           #   -d "$APP_VERSION_PAYLOAD")
 
-          # Use admin token for AppTrust call (consistent with inventory/checkout)
+          # Use OIDC-minted access token for AppTrust call
           HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
             "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false" \
-            -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+            -H "Authorization: Bearer $JF_ACCESS_TOKEN" \
               -H "Content-Type: application/json" \
               -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
               -d "$APP_VERSION_PAYLOAD" \
@@ -871,7 +909,7 @@ jobs:
           CONTENT_FILE=$(mktemp)
           CONTENT_STATUS=$(curl -sS -L -o "$CONTENT_FILE" -w "%{http_code}" \
             "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/$APP_VERSION/content" \
-            -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+            -H "Authorization: Bearer $JF_ACCESS_TOKEN" \
             -H "Accept: application/json")
           if [[ "$CONTENT_STATUS" != "200" ]]; then
             echo "❌ Version content endpoint returned HTTP $CONTENT_STATUS for $APPLICATION_KEY@$APP_VERSION" >&2
