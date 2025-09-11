@@ -41,7 +41,7 @@ class Indexer:
 
     def rebuild(self) -> None:
         """Rebuild all in-memory indices and recompute popularity."""
-        books_payload = self.client.list_books(per_page=200)
+        books_payload = self.client.list_books(per_page=100)
         book_by_id: Dict[str, BookLite] = {}
         genre_to_book_ids: Dict[str, Set[str]] = {}
         author_to_book_ids: Dict[str, Set[str]] = {}
@@ -64,7 +64,7 @@ class Indexer:
                 author_to_book_ids.setdefault(a, set()).add(book.id)
 
         # Popularity from recent transactions (stock_out)
-        transactions = self.client.list_transactions(per_page=200)
+        transactions = self.client.list_transactions(per_page=100)
         stock_out_counts: Dict[str, int] = {}
         for tx in transactions:
             if tx.get("transaction_type") == "stock_out":

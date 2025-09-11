@@ -17,7 +17,7 @@ class InventoryClient:
         """Create a short-lived httpx client instance."""
         return httpx.Client(base_url=self.base_url, timeout=self.timeout)
 
-    def list_books(self, per_page: int = 200) -> List[Dict[str, Any]]:
+    def list_books(self, per_page: int = 100) -> List[Dict[str, Any]]:
         """Fetch a page of books with availability from the inventory service."""
         url = "/api/v1/books"
         params = {"page": 1, "per_page": per_page}
