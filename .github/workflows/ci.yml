@@ -67,56 +67,6 @@ jobs:
           echo "REGISTRY_URL=$REGISTRY_URL" >> $GITHUB_ENV
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
 
-      # Duplicate OIDC mint step removed to ensure single mint per job
-
-      - name: "[Setup] Determine SemVer"
-        id: set-app-version
-        run: |
-          set -euo pipefail
-          SERVICE_NAME=${SERVICE_NAME:-$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')}
-          APPLICATION_KEY="bookverse-$SERVICE_NAME"
-          echo "🔎 Resolving next SemVer for $APPLICATION_KEY"
-          RESP_FILE=$(mktemp)
-          HTTP_STATUS=$(curl -sS -L -o "$RESP_FILE" -w "%{http_code}" \
-            "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/" \
-            -H "Authorization: Bearer $JF_ACCESS_TOKEN" \
-            -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
-            -H "Accept: application/json")
-          if [[ "$HTTP_STATUS" -ge 200 && "$HTTP_STATUS" -lt 300 ]]; then
-            if LATEST_VERSION=$(jq -er '.versions[0].version // empty' "$RESP_FILE" 2>/dev/null); then
-              :
-            else
-              LATEST_VERSION=""
-            fi
-          else
-            LATEST_VERSION=""
-          fi
-          rm -f "$RESP_FILE"
-          if [[ -n "$LATEST_VERSION" && "$LATEST_VERSION" != "null" ]]; then
-            MAJOR=$(echo "$LATEST_VERSION" | cut -d. -f1)
-            MINOR=$(echo "$LATEST_VERSION" | cut -d. -f2)
-            PATCH=$(echo "$LATEST_VERSION" | cut -d. -f3 | cut -d- -f1)
-            APP_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
-            echo "⬆️ Latest=$LATEST_VERSION → Next=$APP_VERSION"
-          else
-            echo "🆕 No existing versions found, starting fresh"
-            # Generate initial version between 1.0.0 to 2.5.9
-            MAJOR=1
-            MINOR=$((RANDOM % 6))  # 0-5
-            PATCH=$((RANDOM % 10)) # 0-9
-            APP_VERSION="$MAJOR.$MINOR.$PATCH"
-            echo "🎯 Generated initial version: $APP_VERSION"
-          fi
-          REGISTRY_URL=${REGISTRY_URL:-${{ vars.DOCKER_REGISTRY }}}
-          IMAGE_TAG="$APP_VERSION"
-          IMAGE_NAME="$REGISTRY_URL/${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local/$SERVICE_NAME:$IMAGE_TAG"
-          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
-          echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
-          echo "APPLICATION_KEY=$APPLICATION_KEY" >> $GITHUB_ENV
-
-
       - name: "[Setup] JFrog CLI"
         # Temporary workaround: using forked action until upstream fix
         # uses: jfrog/setup-jfrog-cli@v4
@@ -124,8 +74,8 @@ jobs:
         env:
           JF_URL: ${{ vars.JFROG_URL }}
           JF_PROJECT: ${{ vars.PROJECT_KEY }}
-          JFROG_CLI_BUILD_NAME: ${{ github.event.repository.name }}_${{ github.workflow }}_${{ github.job }}
-          JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}-${{ github.run_attempt }}
+          JFROG_CLI_BUILD_NAME: ${{ steps.set-build-info.outputs.build_name }}
+          JFROG_CLI_BUILD_NUMBER: ${{ steps.set-build-info.outputs.build_number }}
         with:
           version: latest
           oidc-provider-name: bookverse-recommendations-github
@@ -133,6 +83,99 @@ jobs:
           disable-auto-build-publish: true
           disable-auto-evidence-collection: false
           oidc-audience: ${{ vars.JFROG_URL }}
+
+      - name: "[Auth] Exchange OIDC and persist JF access token"
+        env:
+          JF_URL: ${{ vars.JFROG_URL }}
+          PROJECT: ${{ vars.PROJECT_KEY }}
+          PROVIDER_NAME: bookverse-recommendations-github
+        run: |
+          set -euo pipefail
+          if ! command -v jq >/dev/null 2>&1; then sudo apt-get update -y && sudo apt-get install -y jq; fi
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "❌ Missing GitHub OIDC request env vars" >&2; exit 1; fi
+          GH_ID_TOKEN=$(curl -sS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${JF_URL}" | jq -r .value)
+          if [[ -z "$GH_ID_TOKEN" || "$GH_ID_TOKEN" == "null" ]]; then echo "❌ Failed to fetch GitHub ID token" >&2; exit 1; fi
+          PAYLOAD=$(jq -n --arg jwt "$GH_ID_TOKEN" \
+            --arg provider_name "$PROVIDER_NAME" \
+            --arg project_key "$PROJECT" \
+            --arg job_id "${{ github.job }}" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg repo "https://github.com/${{ github.repository }}" \
+            --arg revision "${{ github.sha }}" \
+            --arg branch "${{ github.ref_name }}" \
+            '{
+              grant_type:"urn:ietf:params:oauth:grant-type:token-exchange",
+              subject_token_type:"urn:ietf:params:oauth:token-type:id_token",
+              subject_token:$jwt,
+              provider_name:$provider_name,
+              project_key:$project_key,
+              job_id:$job_id,
+              run_id:$run_id,
+              repo:$repo,
+              revision:$revision,
+              branch:$branch
+            }')
+          TOKEN=$(curl -sS -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$JF_URL/access/api/v1/oidc/token" | jq -r .access_token)
+          if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then echo "❌ Failed to exchange OIDC token" >&2; exit 1; fi
+          echo "JF_ACCESS_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: "[Setup] Determine SemVer"
+        id: set-app-version
+        run: |
+          set -euo pipefail
+          SERVICE_NAME=${SERVICE_NAME:-$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')}
+          APPLICATION_KEY="bookverse-$SERVICE_NAME"
+          VMAP_PATH="./config/version-map.yaml"
+          
+          echo "🔎 Resolving next Application SemVer for $APPLICATION_KEY (SemVer sort)"
+          APP_RESP=$(curl -sS -L -X GET "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?limit=200" \
+            -H "Authorization: Bearer $JF_ACCESS_TOKEN" \
+            -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
+            -H "Accept: application/json" 2>/dev/null || echo '{"error":"curl_failed"}')
+          if ! echo "$APP_RESP" | jq -e . >/dev/null 2>&1; then
+            APP_LATEST=""
+          else
+            # Take all versions, strip any pre-release suffix, keep strict X.Y.Z, sort numerically and pick last
+            PARSED=$(echo "$APP_RESP" | jq -r '[.versions[]?.version? | gsub("-.*$"; "") | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))]')
+            COUNT=$(printf '%s' "$PARSED" | jq 'length' 2>/dev/null || echo 0)
+            SORTED=$(printf '%s' "$PARSED" | jq -r 'unique | sort_by([ (split(".")[0]|tonumber),(split(".")[1]|tonumber),(split(".")[2]|tonumber) ])')
+            if [ "${COUNT:-0}" -gt 0 ]; then
+              echo "📚 Found $COUNT existing versions"
+            else
+              echo "📚 No existing versions found"
+            fi
+            APP_LATEST=$(printf '%s' "$SORTED" | jq -r '(last // empty)' 2>/dev/null || echo "")
+          fi
+          if [[ -n "${APP_LATEST}" ]]; then
+            IFS='.' read -r A_MAJ A_MIN A_PAT <<<"${APP_LATEST}"; A_PAT=$((A_PAT+1)); APP_VERSION="${A_MAJ}.${A_MIN}.${A_PAT}"
+            echo "🧮 Latest parsed version: ${APP_LATEST}; ⬆️ next: ${APP_VERSION}"
+          else
+            # Use seed version from local version map
+            APP_SEED=$(awk -v key="$APPLICATION_KEY" '
+              BEGIN { found_key=0; in_seeds=0 }
+              /^  - key:/ { found_key = ($3 == key); in_seeds=0; next }
+              found_key && /^    seeds:/ { in_seeds=1; next }
+              found_key && in_seeds && /^[[:space:]]+application:[[:space:]]*/ {
+                sub(/^[ \t]+application:[ \t]*/, "");
+                print; exit
+              }
+            ' "$VMAP_PATH" 2>/dev/null || echo "")
+            # Bump the seed version's patch to avoid repeats when previous runs used the same seed
+            IFS='.' read -r S_MAJ S_MIN S_PAT <<<"${APP_SEED}"; S_PAT=$((S_PAT+1)); APP_VERSION="${S_MAJ}.${S_MIN}.${S_PAT}"
+            echo "🌱 Using seed from version-map.yaml: $APP_SEED; ⬆️ bumped to: $APP_VERSION"
+          fi
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
+          echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
+          
+          REGISTRY_URL=${REGISTRY_URL:-${{ vars.DOCKER_REGISTRY }}}
+          IMAGE_TAG="$APP_VERSION"
+          IMAGE_NAME="$REGISTRY_URL/${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local/$SERVICE_NAME:$IMAGE_TAG"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "APPLICATION_KEY=$APPLICATION_KEY" >> $GITHUB_ENV
+
 
       - name: "[Setup] JFrog config"
         run: |
