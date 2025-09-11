@@ -41,7 +41,7 @@ class Indexer:
 
     def rebuild(self) -> None:
         """Rebuild all in-memory indices and recompute popularity."""
-        books_payload = self.client.list_books(per_page=1000)
+        books_payload = self.client.list_books(per_page=200)
         book_by_id: Dict[str, BookLite] = {}
         genre_to_book_ids: Dict[str, Set[str]] = {}
         author_to_book_ids: Dict[str, Set[str]] = {}
