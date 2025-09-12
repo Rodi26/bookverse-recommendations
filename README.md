@@ -79,7 +79,6 @@ Optional steps (guarded by repo variables/secrets):
 
 ### Required repository secrets
 
-- `JFROG_ACCESS_TOKEN` (optional): Only needed for AppTrust REST API calls in CI (e.g., creating application versions). With OIDC configured, the workflow runs without it.
 - `EVIDENCE_PRIVATE_KEY`: Private key PEM for evidence signing (mandatory)
 
 ### Mandatory OIDC application binding (.jfrog/config.yml)

@@ -36,7 +36,6 @@ Define the complete software delivery lifecycle for the Recommendations service:
 
 - Repository variables and secrets:
   - `vars.JFROG_URL`, `vars.PROJECT_KEY`
-  - `secrets.JFROG_ACCESS_TOKEN` (or OIDC with server-side trust)
   - `secrets.EVIDENCE_PRIVATE_KEY` (optional if no server-side key alias)
 - Artifactory repositories (project-scoped):
   - `${PROJECT_KEY}-recommendations-internal-docker-nonprod-local`
