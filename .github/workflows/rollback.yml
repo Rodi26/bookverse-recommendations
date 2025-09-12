@@ -85,7 +85,8 @@ jobs:
         run: |
           python scripts/apptrust_rollback.py \
             --app "bookverse-recommendations" \
-            --version "${{ github.event.inputs.version }}"
+            --version "${{ github.event.inputs.version }}" \
+            --use-api
 
       - name: "[Tags] Enforce PROD 'latest' invariants"
         run: |

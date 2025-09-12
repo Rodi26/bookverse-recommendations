@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 """
-Local copy of AppTrust rollback utility (sourced from platform/inventory services).
+AppTrust rollback utility for BookVerse Recommendations Service
 
 Purpose:
 - Perform a rollback of an application version using the dedicated AppTrust API:
@@ -14,23 +14,24 @@ Behavior:
 - Fails fast if the version is UNASSIGNED (rollback not applicable).
 
 Authentication:
-- Uses JFrog CLI with OIDC. Requires `jf` on PATH and a configured server context
-  (e.g., `jf c add --interactive=false --url "$JFROG_URL" --access-token ""`).
+- Uses OIDC tokens for direct API authentication (no CLI dependencies).
+- Requires both --base-url and --token parameters or their environment equivalents.
 
 Inputs:
 - --app: application key (defaults to bookverse-recommendations)
 - --version: semantic version to rollback (e.g., 1.2.3)
+- --base-url: AppTrust API base URL (env: APPTRUST_BASE_URL)
+- --token: OIDC access token (env: APPTRUST_ACCESS_TOKEN)
 
 Notes:
 - This script does not print secrets.
 - Logs include a sanitized description of the endpoint and request body used.
+- Uses native Python HTTP requests instead of external CLI tools for security.
 """
 
 import argparse
 import json
 import os
-import shutil
-import subprocess
 import re
 import sys
 import time
@@ -140,46 +141,6 @@ class AppTrustClient:
         return self._request("POST", path, body={"from_stage": from_stage})
 
 
-class AppTrustClientCLI:
-    """AppTrust client backed by JFrog CLI (OIDC-enabled).
-
-    Requires `jf` on PATH and a configured server context (e.g., via
-    `jf c add --interactive=false --url "$JFROG_URL" --access-token ""`).
-    """
-
-    def __init__(self, timeout_seconds: int = 30) -> None:
-        self.timeout_seconds = timeout_seconds
-
-    @staticmethod
-    def _ensure_cli_available() -> None:
-        if shutil.which("jf") is None:
-            raise RuntimeError("JFrog CLI (jf) not found on PATH. Install/configure it for OIDC.")
-
-    @staticmethod
-    def _run_jf(method: str, path: str, body: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        AppTrustClientCLI._ensure_cli_available()
-        args: List[str] = ["jf", "curl", "-X", method.upper(), path]
-        if body is not None:
-            args += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
-        try:
-            proc = subprocess.run(args, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"jf curl failed: {e.stderr.strip() or e}")
-        raw = (proc.stdout or "").strip()
-        if not raw:
-            return {}
-        try:
-            return json.loads(raw)
-        except Exception:
-            return {"raw": raw}
-
-    def get_version_content(self, app_key: str, version: str) -> Dict[str, Any]:
-        path = f"/apptrust/api/v1/applications/{urllib.parse.quote(app_key)}/versions/{urllib.parse.quote(version)}/content"
-        return self._run_jf("GET", path)
-
-    def rollback_application_version(self, app_key: str, version: str, from_stage: str) -> Dict[str, Any]:
-        path = f"/apptrust/api/v1/applications/{urllib.parse.quote(app_key)}/versions/{urllib.parse.quote(version)}/rollback"
-        return self._run_jf("POST", path, body={"from_stage": from_stage})
 
 
 def rollback_in_prod(client: AppTrustClient, app_key: str, target_version: str) -> None:
@@ -204,15 +165,18 @@ def main() -> int:
     p = argparse.ArgumentParser(description="AppTrust PROD rollback utility (recommendations)")
     p.add_argument("--app", default="bookverse-recommendations", help="Application key")
     p.add_argument("--version", required=True, help="Target version to rollback (SemVer)")
-    # OIDC-only path: no base-url or token arguments
+    p.add_argument("--base-url", default=_env("APPTRUST_BASE_URL"), help="Base API URL, e.g. https://<host>/apptrust/api/v1 (env: APPTRUST_BASE_URL)")
+    p.add_argument("--token", default=_env("APPTRUST_ACCESS_TOKEN"), help="OIDC access token (env: APPTRUST_ACCESS_TOKEN)")
     args = p.parse_args()
 
-    try:
-        client = AppTrustClientCLI()
-    except Exception as e:
-        print(f"OIDC (CLI) auth not available: {e}", file=sys.stderr)
+    # Require both base URL and token for OIDC authentication
+    if not args.base_url or not args.token:
+        print("ERROR: Both --base-url and --token are required for OIDC authentication", file=sys.stderr)
+        print("Set APPTRUST_BASE_URL and APPTRUST_ACCESS_TOKEN environment variables", file=sys.stderr)
         return 2
+
     try:
+        client = AppTrustClient(args.base_url, args.token)
         start = time.time()
         rollback_in_prod(client, args.app, args.version)
         print(f"Done in {time.time()-start:.2f}s")
