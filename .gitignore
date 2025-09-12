@@ -6,3 +6,7 @@ __pycache__/
 coverage.xml
 htmlcov/
 ci-latest.log
+
+# Local secrets (never commit)
+.secrets/
+.secrets/**
