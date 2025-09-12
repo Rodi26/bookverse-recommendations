@@ -1,10 +1,20 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .api import router as api_router
 import os
 import hashlib
 from .settings import load_settings
 
 app = FastAPI(title="BookVerse Recommendations Service")
+
+# Add CORS middleware for web frontend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify actual origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
