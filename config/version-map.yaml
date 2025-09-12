@@ -10,3 +10,9 @@ applications:
       - type: docker
         name: recommendations-worker
         seed: 1.8.22
+      - type: generic
+        name: recommendation-config
+        seed: 1.13.43
+      - type: generic
+        name: resources
+        seed: 5.9.42
