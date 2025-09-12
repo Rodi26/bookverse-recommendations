@@ -70,12 +70,22 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: "[Setup] JFrog CLI"
+        uses: EyalDelarea/setup-jfrog-cli@swampUpAppTrust
+        env:
+          JF_URL: ${{ vars.JFROG_URL }}
+          JF_PROJECT: ${{ vars.PROJECT_KEY }}
+        with:
+          version: latest
+          oidc-provider-name: bookverse-recommendations-github
+          disable-job-summary: true
+          oidc-audience: ${{ vars.JFROG_URL }}
+
       - name: "[Rollback] Execute"
         run: |
           python scripts/apptrust_rollback.py \
-            --version "${{ github.event.inputs.version }}" \
-            --base-url "$APPTRUST_BASE_URL" \
-            --token "$APPTRUST_ACCESS_TOKEN"
+            --app "bookverse-recommendations" \
+            --version "${{ github.event.inputs.version }}"
 
       - name: "[Tags] Enforce PROD 'latest' invariants"
         run: |
