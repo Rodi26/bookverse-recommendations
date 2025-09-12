@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Union
 import httpx
 
 
@@ -9,7 +9,7 @@ INVENTORY_BASE_URL = os.getenv("INVENTORY_BASE_URL", "http://inventory")
 class InventoryClient:
     """Minimal HTTP client for the inventory service used by recommendations."""
 
-    def __init__(self, base_url: str | None = None, timeout_seconds: float = 5.0):
+    def __init__(self, base_url: Optional[str] = None, timeout_seconds: float = 5.0):
         self.base_url = base_url or INVENTORY_BASE_URL
         self.timeout = timeout_seconds
 

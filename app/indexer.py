@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Optional
 
 from .clients import InventoryClient
 from .schemas import BookLite, Availability
@@ -23,7 +23,7 @@ class CatalogIndices:
 class Indexer:
     """Build and serve catalog indices with a simple TTL cache."""
 
-    def __init__(self, client: InventoryClient | None = None) -> None:
+    def __init__(self, client: Optional[InventoryClient] = None) -> None:
         self.client = client or InventoryClient()
         self.indices = CatalogIndices()
 

@@ -318,7 +318,7 @@ jobs:
           EVIDENCE_KEY_ALIAS: ${{ vars.EVIDENCE_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          export JFROG_URL="${{ vars.JFROG_URL }}"; export PROJECT_KEY="${{ vars.PROJECT_KEY }}"; export JFROG_ADMIN_TOKEN="${{ secrets.JFROG_ADMIN_TOKEN }}"; source .github/scripts/promote_lib.sh
+          export JFROG_URL="${{ vars.JFROG_URL }}"; export PROJECT_KEY="${{ vars.PROJECT_KEY }}"; source .github/scripts/promote_lib.sh
           fetch_summary
           if [[ "$(display_stage_for "${CURRENT_STAGE:-}")" == "STAGING" ]]; then
             ALLOW_RELEASE=true
@@ -333,7 +333,7 @@ jobs:
           if ! command -v jq >/dev/null 2>&1; then sudo apt-get update -y && sudo apt-get install -y jq; fi
           APP_KEY="$APPLICATION_KEY"
           BASE="${{ vars.JFROG_URL }}/apptrust/api/v1"
-          TOKEN='${{ secrets.JFROG_ADMIN_TOKEN }}'
+          TOKEN="$APPTRUST_ACCESS_TOKEN"
           RESP=$(mktemp)
           code=$(curl -sS -L -o "$RESP" -w "%{http_code}" \
             "$BASE/applications/$APP_KEY/versions?limit=1000&order_by=created&order_asc=false" \

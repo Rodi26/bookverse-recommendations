@@ -177,8 +177,9 @@ jobs:
 
       - name: "[Setup] JFrog config"
         run: |
-          jf c add bookverse-admin --interactive=false --url "${{ vars.JFROG_URL }}" --access-token "${{ secrets.JFROG_ADMIN_TOKEN }}" || true
-          jf c use bookverse-admin || true
+          # Use the OIDC-configured server context from setup-jfrog-cli action
+          SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
+          jf c use "$SERVER_ID" || true
           jf c show || true
 
       - name: "[Setup] Python"
@@ -957,17 +958,9 @@ jobs:
           echo "📦 Application Key: $APPLICATION_KEY"
           echo "📝 Payload:"; echo "$APP_VERSION_PAYLOAD" | jq . || echo "$APP_VERSION_PAYLOAD"
 
-          # Create the application version with status/body capture (testing OIDC instead of admin token)
+          # Create the application version with status/body capture using OIDC authentication
           RESP_BODY=$(mktemp)
-          # OLD (commented for testing): use static admin token
-          # HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
-          #   "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions/?async=false" \
-          #   -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
-          #   -H "Content-Type: application/json" \
-          #   -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
-          #   -H "Accept: application/json" \
-          #   -d "$APP_VERSION_PAYLOAD")
-
+          
           # Use OIDC-minted access token for AppTrust call
           HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
             "${{ vars.JFROG_URL }}/apptrust/api/v1/applications/$APPLICATION_KEY/versions?async=false" \
@@ -1039,10 +1032,9 @@ jobs:
       - name: "[Evidence] Attach UNASSIGNED (SLSA, Jira)"
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
-          JFROG_CLI_SERVER_ID: bookverse-admin
         run: |
-          # Force using the admin-configured JFrog server for evidence API calls
-          SERVER_ID="${JFROG_CLI_SERVER_ID:-bookverse-admin}"
+          # Use the OIDC-configured server context from setup-jfrog-cli action
+          SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
           jf c use "$SERVER_ID" || true
           set -euo pipefail
           if ! command -v envsubst >/dev/null 2>&1; then sudo apt-get update -y && sudo apt-get install -y gettext-base; fi
