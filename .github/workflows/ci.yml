@@ -524,52 +524,104 @@ jobs:
 
       - name: "[Build] API image"
         run: |
-          jf docker build --pull -t "$API_IMAGE_NAME" -f Dockerfile .
-          # TEMP: Artifactory < 7.33.3 doesn't support 'jf docker push'.
-          # Re-enable the original push line below once Artifactory is upgraded.
-          # jf docker push "$API_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
-          # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
-          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$API_IMAGE_NAME" "$DOCKER_REPO" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
-          echo "✅ Built and pushed API image via JFrog CLI"
+          set -euo pipefail
+          # Use JFrog CLI to authenticate pushes without requiring docker login
+          SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
+          jf c use "$SERVER_ID" || true
+          # Ensure project header is sent for OIDC-based commands like `jf docker`
+          export JF_PROJECT="${{ vars.PROJECT_KEY }}"
+          # Also set build project explicitly for JFrog CLI commands
+          export JFROG_CLI_BUILD_PROJECT="${{ vars.PROJECT_KEY }}"
+
+          # Build and push (plain docker) using subdomain host; then create build-info
+          jf docker build --pull -t "$API_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" -f Dockerfile .
+          docker push "$API_IMAGE_NAME"
+          echo "✅ Built and pushed API image (OIDC docker push + build-info)"
 
       - name: "[Build] Worker image"
         run: |
-          jf docker build --pull -t "$WORKER_IMAGE_NAME" -f Dockerfile.worker .
-          # TEMP: Artifactory < 7.33.3 doesn't support 'jf docker push'.
-          # Re-enable the original push line below once Artifactory is upgraded.
-          # jf docker push "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
-          # Using deprecated fallback below: 'jf rt docker-push' (alias: 'jf rt dp').
-          jf rt dp --project "${{ vars.PROJECT_KEY }}" "$WORKER_IMAGE_NAME" "$DOCKER_REPO" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
-          echo "✅ Built and pushed Worker image via JFrog CLI"
+          set -euo pipefail
+          # Use JFrog CLI to authenticate pushes without requiring docker login
+          SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
+          jf c use "$SERVER_ID" || true
+          # Ensure project header is sent for OIDC-based commands like `jf docker`
+          export JF_PROJECT="${{ vars.PROJECT_KEY }}"
+          # Also set build project explicitly for JFrog CLI commands
+          export JFROG_CLI_BUILD_PROJECT="${{ vars.PROJECT_KEY }}"
 
-      - name: "[Build Info] Associate Docker Images"
+          # Build and push (plain docker) using subdomain host; then create build-info
+          jf docker build --pull -t "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" -f Dockerfile.worker .
+          docker push "$WORKER_IMAGE_NAME"
+          echo "✅ Built and pushed Worker image (OIDC docker push + build-info)"
+
+      - name: "[Build Info] Publish"
         run: |
-          # Critical: Associate Docker images with build info for AppTrust application version creation
-          # This step was missing and caused "source artifact is missing" errors
+          # Associate the pushed Docker images with the build-info before publishing
+          echo "🔗 Adding docker images to build-info: API=$API_IMAGE_NAME Worker=$WORKER_IMAGE_NAME repo=$DOCKER_REPO"
           
-          echo "🔗 Associating Docker images with build info..."
-          
-          # Associate API image with build info
-          API_DIGEST=$(jf rt curl -X GET "/api/docker/$DOCKER_REPO/v2/$SERVICE_NAME/$IMAGE_TAG/manifest" | jq -r '.digest // empty')
-          if [[ -n "$API_DIGEST" && "$API_DIGEST" != "null" ]]; then
-            echo "📦 API Image digest: $API_DIGEST"
-            jf rt build-docker-create "$DOCKER_REPO" --image-file "$API_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
-          else
-            echo "⚠️ Could not resolve API image digest, using image name"
-            jf rt build-docker-create "$DOCKER_REPO" --image-file "$API_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
+          # Resolve API image digest and write in required format: image:tag@sha256:...
+          API_DIGEST=$(docker inspect "$API_IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          if [[ -z "$API_DIGEST" || "$API_DIGEST" == "<no value>" ]]; then
+            docker pull "$API_IMAGE_NAME" >/dev/null 2>&1 || true
+            API_DIGEST=$(docker inspect "$API_IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          fi
+          if [[ -z "$API_DIGEST" || "$API_DIGEST" == "<no value>" ]]; then
+            echo "❌ Could not resolve API image digest for $API_IMAGE_NAME" >&2; exit 1
           fi
           
-          # Associate Worker image with build info  
-          WORKER_DIGEST=$(jf rt curl -X GET "/api/docker/$DOCKER_REPO/v2/${SERVICE_NAME}-worker/$IMAGE_TAG/manifest" | jq -r '.digest // empty')
-          if [[ -n "$WORKER_DIGEST" && "$WORKER_DIGEST" != "null" ]]; then
-            echo "📦 Worker Image digest: $WORKER_DIGEST"
-            jf rt build-docker-create "$DOCKER_REPO" --image-file "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
-          else
-            echo "⚠️ Could not resolve Worker image digest, using image name"
-            jf rt build-docker-create "$DOCKER_REPO" --image-file "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
+          # Resolve Worker image digest and write in required format: image:tag@sha256:...
+          WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
+            docker pull "$WORKER_IMAGE_NAME" >/dev/null 2>&1 || true
+            WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          fi
+          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
+            echo "❌ Could not resolve Worker image digest for $WORKER_IMAGE_NAME" >&2; exit 1
           fi
           
-          echo "✅ Docker images associated with build info"
+          # Create images file with both images
+          echo "${API_IMAGE_NAME%@*}@${API_DIGEST}" > images.txt
+          echo "${WORKER_IMAGE_NAME%@*}@${WORKER_DIGEST}" >> images.txt
+          
+          jf rt build-docker-create "$DOCKER_REPO" \
+            --image-file images.txt \
+            --build-name "$BUILD_NAME" \
+            --build-number "$BUILD_NUMBER" \
+            --project "${{ vars.PROJECT_KEY }}"
+          
+          jf rt bag --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
+          jf rt bce --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
+          if BUILD_PUBLISH_RESULT=$(jf rt bp --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"); then
+            echo "BUILD_INFO_PUBLISH_STATUS=SUCCESS" >> $GITHUB_ENV
+            
+            # Extract timestamp from build publish result (optimized - no extra API call)
+            # Parse the UI URL from JFrog CLI log output instead of non-existent JSON field
+            BUILD_UI_URL=$(echo "$BUILD_PUBLISH_RESULT" | grep -o 'https://[^[:space:]]*builds/[^[:space:]]*' | head -1 || echo "")
+            
+            if [[ -n "$BUILD_UI_URL" ]]; then
+              # Extract epoch milliseconds from UI URL: .../builds/NAME/NUMBER/TIMESTAMP/published
+              EPOCH_MS=$(echo "$BUILD_UI_URL" | sed -n 's|.*/builds/[^/]*/[^/]*/\([0-9]*\)/published.*|\1|p')
+              
+              if [[ -n "$EPOCH_MS" && "$EPOCH_MS" =~ ^[0-9]+$ ]]; then
+                # Convert to JFrog's exact timestamp format: YYYY-MM-DDTHH:MM:SS.mmm+0000
+                EPOCH_SEC=$((EPOCH_MS / 1000))
+                MILLISECS=$((EPOCH_MS % 1000))
+                BUILD_STARTED_TIMESTAMP=$(date -u -r "$EPOCH_SEC" "+%Y-%m-%dT%H:%M:%S" 2>/dev/null || date -u -d "@$EPOCH_SEC" "+%Y-%m-%dT%H:%M:%S")
+                BUILD_STARTED_TIMESTAMP="${BUILD_STARTED_TIMESTAMP}.$(printf "%03d" $MILLISECS)+0000"
+                
+                echo "BUILD_STARTED_TIMESTAMP=$BUILD_STARTED_TIMESTAMP" >> $GITHUB_ENV
+                echo "✅ Extracted timestamp from build publish result: $BUILD_STARTED_TIMESTAMP"
+              else
+                echo "⚠️ Could not extract valid timestamp from UI URL: $BUILD_UI_URL"
+              fi
+            else
+              echo "⚠️ Could not extract build UI URL from publish result"
+            fi
+          else
+            echo "BUILD_INFO_PUBLISH_STATUS=FAILED" >> $GITHUB_ENV
+            echo "❌ Failed to publish build info" >&2
+            exit 1
+          fi
 
       # Optional: Trivy image scan (simulated)
       # To enable, set repository variable ENABLE_TRIVY=true
