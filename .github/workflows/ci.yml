@@ -636,11 +636,15 @@ jobs:
           
           jf rt bag --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
           jf rt bce --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
-          if BUILD_PUBLISH_RESULT=$(jf rt bp --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"); then
+          
+          # Capture both stdout and stderr, and also let the command output normally for logging
+          BUILD_PUBLISH_TEMP=$(mktemp)
+          if jf rt bp --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER" 2>&1 | tee "$BUILD_PUBLISH_TEMP"; then
             echo "BUILD_INFO_PUBLISH_STATUS=SUCCESS" >> $GITHUB_ENV
+            BUILD_PUBLISH_RESULT=$(cat "$BUILD_PUBLISH_TEMP")
             
             # Extract timestamp from build publish result (optimized - no extra API call)
-            # Parse the UI URL from JFrog CLI log output instead of non-existent JSON field
+            # Parse the UI URL from JFrog CLI log output (can be in stdout or stderr)
             BUILD_UI_URL=$(echo "$BUILD_PUBLISH_RESULT" | grep -o 'https://[^[:space:]]*builds/[^[:space:]]*' | head -1 || echo "")
             
             if [[ -n "$BUILD_UI_URL" ]]; then
@@ -662,9 +666,12 @@ jobs:
             else
               echo "⚠️ Could not extract build UI URL from publish result"
             fi
+            rm -f "$BUILD_PUBLISH_TEMP"
           else
             echo "BUILD_INFO_PUBLISH_STATUS=FAILED" >> $GITHUB_ENV
             echo "❌ Failed to publish build info" >&2
+            cat "$BUILD_PUBLISH_TEMP" >&2
+            rm -f "$BUILD_PUBLISH_TEMP"
             exit 1
           fi
 
@@ -947,45 +954,6 @@ jobs:
           * **Checked At (UTC)**: `${NOW_TS}`
           EOF
 
-      - name: "[Build Info] Publish"
-        run: |
-          jf rt bag --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
-          jf rt bce --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
-          if BUILD_PUBLISH_RESULT=$(jf rt bp --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"); then
-            echo "BUILD_INFO_PUBLISH_STATUS=SUCCESS" >> $GITHUB_ENV
-            
-            # Extract timestamp from build publish result (optimized - no extra API call)
-            # Parse the UI URL from JFrog CLI log output instead of non-existent JSON field
-            echo "🔍 DEBUG: BUILD_PUBLISH_RESULT content:"
-            echo "$BUILD_PUBLISH_RESULT"
-            echo "🔍 DEBUG: End BUILD_PUBLISH_RESULT"
-            
-            BUILD_UI_URL=$(echo "$BUILD_PUBLISH_RESULT" | grep -o 'https://[^[:space:]]*builds/[^[:space:]]*' | head -1 || echo "")
-            echo "🔍 DEBUG: Extracted BUILD_UI_URL: '$BUILD_UI_URL'"
-            
-            if [[ -n "$BUILD_UI_URL" ]]; then
-              # Extract epoch milliseconds from UI URL: .../builds/NAME/NUMBER/TIMESTAMP/published
-              EPOCH_MS=$(echo "$BUILD_UI_URL" | sed -n 's|.*/builds/[^/]*/[^/]*/\([0-9]*\)/published.*|\1|p')
-              
-              if [[ -n "$EPOCH_MS" && "$EPOCH_MS" =~ ^[0-9]+$ ]]; then
-                # Convert to JFrog's exact timestamp format: YYYY-MM-DDTHH:MM:SS.mmm+0000
-                EPOCH_SEC=$((EPOCH_MS / 1000))
-                MILLISECS=$((EPOCH_MS % 1000))
-                BUILD_STARTED_TIMESTAMP=$(date -u -r "$EPOCH_SEC" "+%Y-%m-%dT%H:%M:%S" 2>/dev/null || date -u -d "@$EPOCH_SEC" "+%Y-%m-%dT%H:%M:%S")
-                BUILD_STARTED_TIMESTAMP="${BUILD_STARTED_TIMESTAMP}.$(printf "%03d" $MILLISECS)+0000"
-                
-                echo "BUILD_STARTED_TIMESTAMP=$BUILD_STARTED_TIMESTAMP" >> $GITHUB_ENV
-                echo "✅ Extracted timestamp from build publish result: $BUILD_STARTED_TIMESTAMP"
-              else
-                echo "⚠️ Could not extract valid timestamp from UI URL: $BUILD_UI_URL"
-              fi
-            else
-              echo "⚠️ Could not extract build UI URL from publish result"
-            fi
-          else
-            echo "BUILD_INFO_PUBLISH_STATUS=FAILED" >> $GITHUB_ENV
-            exit 1
-          fi
 
       - name: "[Evidence] Attach quality gate"
         env:
