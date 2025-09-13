@@ -1067,7 +1067,8 @@ jobs:
 
   create-application-version:
     needs: [analyze-commit, build-test-publish]
-    if: needs.analyze-commit.outputs.create_app_version == 'true' && needs.build-test-publish.result == 'success'
+    # Temporarily removed condition for debugging
+    # if: needs.analyze-commit.outputs.create_app_version == 'true' && needs.build-test-publish.result == 'success'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -1077,6 +1078,13 @@ jobs:
       id-token: write
 
     steps:
+      - name: "[Debug] Job Condition Values"
+        run: |
+          echo "🔍 DEBUG: Job condition values:"
+          echo "  needs.analyze-commit.outputs.create_app_version: '${{ needs.analyze-commit.outputs.create_app_version }}'"
+          echo "  needs.build-test-publish.result: '${{ needs.build-test-publish.result }}'"
+          echo "  Condition should be: create_app_version == 'true' && result == 'success'"
+          
       - name: "[Setup] Checkout"
         uses: actions/checkout@v4
 
