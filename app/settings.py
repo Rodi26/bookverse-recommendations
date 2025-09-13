@@ -7,6 +7,9 @@ try:
 except Exception:  # pragma: no cover
     yaml = None  # optional dependency
 
+# Import bookverse-core configuration
+from bookverse_core.config import ConfigLoader, BaseConfig
+
 
 DEFAULTS = {
     "weights": {"genre": 1.0, "author": 0.25, "popularity": 0.10},
@@ -19,9 +22,38 @@ DEFAULTS = {
 }
 
 
+from pydantic import BaseModel
+
+class RecommendationsConfig(BaseModel):
+    """Configuration model for recommendations service using bookverse-core."""
+    weights: dict = {"genre": 1.0, "author": 0.25, "popularity": 0.10}
+    limits: dict = {"default": 10, "max": 50}
+    features: dict = {
+        "filter_out_of_stock": True,
+        "enable_cache": False,
+        "ttl_seconds": 60,
+    }
+
+
 @lru_cache(maxsize=1)
 def load_settings() -> Dict[str, Any]:
-    """Load YAML settings and merge with defaults and environment overrides."""
+    """Load YAML settings using bookverse-core configuration loader."""
+    path = os.getenv("RECOMMENDATIONS_SETTINGS_PATH", "config/recommendations-settings.yaml")
+    
+    # Use bookverse-core configuration loader
+    loader = ConfigLoader(RecommendationsConfig)
+    config = loader.load_from(
+        yaml_file=path,
+        defaults=DEFAULTS,
+        env_prefix="RECO_"  # Support RECO_TTL_SECONDS etc.
+    )
+    
+    return config.model_dump()
+
+
+# Keep legacy function for rollback capability during migration
+def load_settings_legacy() -> Dict[str, Any]:
+    """Original load_settings implementation - kept for rollback."""
     path = os.getenv("RECOMMENDATIONS_SETTINGS_PATH", "config/recommendations-settings.yaml")
     data: Dict[str, Any] = {}
     if yaml is not None and os.path.exists(path):
@@ -29,21 +61,18 @@ def load_settings() -> Dict[str, Any]:
             with open(path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
         except Exception as e:
-            # Log the error instead of silently falling back
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Failed to load YAML configuration from {path}: {e}")
-            # Still fall back to empty dict but with proper error reporting
             data = {}
     else:
-        # Log when configuration file is missing
         import logging
         logger = logging.getLogger(__name__)
         if yaml is None:
             logger.warning("YAML library not available, using default configuration")
         else:
             logger.warning(f"Configuration file not found at {path}, using default configuration")
-    # Merge with defaults (shallow)
+    
     merged = DEFAULTS.copy()
     for k, v in (data or {}).items():
         if isinstance(v, dict) and isinstance(merged.get(k), dict):
@@ -52,7 +81,7 @@ def load_settings() -> Dict[str, Any]:
             merged[k] = mv
         else:
             merged[k] = v
-    # Env overrides
+    
     ttl_env = os.getenv("RECO_TTL_SECONDS")
     if ttl_env:
         try:

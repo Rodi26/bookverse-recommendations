@@ -8,3 +8,4 @@ python-multipart==0.0.9
 requests==2.31.0
 
 
+bookverse-core @ file:///Users/yonatanp/playground/AppTrust-BookVerse/bookverse-demo/bookverse-core
