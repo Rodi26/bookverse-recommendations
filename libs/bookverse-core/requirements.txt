@@ -1,11 +1,8 @@
 fastapi==0.111.0
 uvicorn[standard]==0.30.0
-httpx==0.27.0
-python-dotenv==1.0.1
-pytest==8.3.2
+pydantic==2.5.0
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.9
 requests==2.31.0
-
-
-bookverse-core @ file:./libs/bookverse-core
+PyYAML==6.0.1
+sqlalchemy==2.0.23
