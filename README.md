@@ -2,6 +2,10 @@
 
 Minimal FastAPI service for BookVerse. This service provides a simple, demo-friendly recommendation engine and is optimized to showcase CI/CD pipeline capabilities and multi-artifact delivery.
 
+## Testing Status
+- Testing automatic CI triggers with all lessons learned applied
+- Validating commit filtering, application version creation, and auto-promotion
+
 ## Local run
 
 ```bash
