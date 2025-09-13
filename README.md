@@ -119,4 +119,4 @@ python -m pytest -v
 
 - [`ci.yml`](.github/workflows/ci.yml) — CI: build API/worker images, run tests, upload config/resources artifacts; optional security/signing steps.
 - [`promote.yml`](.github/workflows/promote.yml) — Promote the recommendations app version through stages with evidence.
-- [`rollback.yml`](.github/workflows/rollback.yml) — Roll back a promoted recommendations application version (demo utility).
+- [`promotion-rollback.yml`](.github/workflows/promotion-rollback.yml) — Roll back a promoted recommendations application version (demo utility).
