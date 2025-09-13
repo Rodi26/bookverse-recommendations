@@ -321,6 +321,10 @@ jobs:
 
       - name: "[Build] Install deps"
         run: |
+          # Install bookverse-core first (required for tests)
+          pip install --no-cache-dir ./libs/bookverse-core
+          echo "✅ Installed bookverse-core from local libs"
+          
           if ! jf pip install -r requirements.txt; then
             echo "⚠️ jf pip install failed; falling back to public PyPI"
             pip install -r requirements.txt -i https://pypi.org/simple
