@@ -533,9 +533,20 @@ jobs:
           # Also set build project explicitly for JFrog CLI commands
           export JFROG_CLI_BUILD_PROJECT="${{ vars.PROJECT_KEY }}"
 
+          # Using OIDC-based server configuration from setup action; no admin token required
+          # Use precomputed IMAGE_TAG/API_IMAGE_NAME from set-app-version step to avoid drift
+          REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
+          REGISTRY_URL="${{ vars.DOCKER_REGISTRY }}"
+          API_IMAGE_NAME="$REGISTRY_URL/$REPO_KEY/$SERVICE_NAME:$IMAGE_TAG"
+          echo "API_IMAGE_NAME=$API_IMAGE_NAME" >> $GITHUB_ENV
+          echo "Using precomputed image tag: $IMAGE_TAG"
+
           # Build and push (plain docker) using subdomain host; then create build-info
           jf docker build --pull -t "$API_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" -f Dockerfile .
           docker push "$API_IMAGE_NAME"
+
+          # Build-info will be published in a later step via bag/bce/bp
+          echo "DOCKER_BUILD_PUSH_STATUS=SUCCESS" >> $GITHUB_ENV
           echo "✅ Built and pushed API image (OIDC docker push + build-info)"
 
       - name: "[Build] Worker image"
@@ -549,9 +560,19 @@ jobs:
           # Also set build project explicitly for JFrog CLI commands
           export JFROG_CLI_BUILD_PROJECT="${{ vars.PROJECT_KEY }}"
 
+          # Using OIDC-based server configuration from setup action; no admin token required
+          # Build worker image name using same pattern as API image
+          REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
+          REGISTRY_URL="${{ vars.DOCKER_REGISTRY }}"
+          WORKER_IMAGE_NAME="$REGISTRY_URL/$REPO_KEY/$SERVICE_NAME-worker:$IMAGE_TAG"
+          echo "WORKER_IMAGE_NAME=$WORKER_IMAGE_NAME" >> $GITHUB_ENV
+
           # Build and push (plain docker) using subdomain host; then create build-info
           jf docker build --pull -t "$WORKER_IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" -f Dockerfile.worker .
           docker push "$WORKER_IMAGE_NAME"
+
+          # Build-info will be published in a later step via bag/bce/bp
+          echo "DOCKER_BUILD_PUSH_STATUS=SUCCESS" >> $GITHUB_ENV
           echo "✅ Built and pushed Worker image (OIDC docker push + build-info)"
 
       - name: "[Build Info] Publish"
