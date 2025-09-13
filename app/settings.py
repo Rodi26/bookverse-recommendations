@@ -28,8 +28,21 @@ def load_settings() -> Dict[str, Any]:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
-        except Exception:
+        except Exception as e:
+            # Log the error instead of silently falling back
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to load YAML configuration from {path}: {e}")
+            # Still fall back to empty dict but with proper error reporting
             data = {}
+    else:
+        # Log when configuration file is missing
+        import logging
+        logger = logging.getLogger(__name__)
+        if yaml is None:
+            logger.warning("YAML library not available, using default configuration")
+        else:
+            logger.warning(f"Configuration file not found at {path}, using default configuration")
     # Merge with defaults (shallow)
     merged = DEFAULTS.copy()
     for k, v in (data or {}).items():

@@ -69,7 +69,7 @@ def get_personalized(payload: PersonalizedRequest):
         for a in payload.seed_authors or []:
             feature_candidates |= idx.author_to_book_ids.get(a, set())
         if not feature_candidates:
-            # Fallback to trending by popularity
+            # DEMO PURPOSE: Fallback to trending by popularity when no personalization data available
             ranked_ids = sorted(idx.book_by_id.keys(), key=lambda i: idx.popularity.get(i, 0.0), reverse=True)
             top_ids = ranked_ids[: payload.limit or 10]
             recs = [build_recommendation_item(idx.book_by_id[i], idx.popularity.get(i, 0.0), {"popularity": idx.popularity.get(i, 0.0)}) for i in top_ids if idx.book_by_id[i].availability.in_stock]

@@ -49,7 +49,7 @@ def info():
     s = load_settings()
     return {
         "service": "recommendations",
-        "version": "0.1.0",
+        "version": os.getenv("SERVICE_VERSION", "0.1.0-dev"),  # Get from environment, fallback to dev version
         "build": {"imageTag": image_tag, "appVersion": app_version},
         "config": {"path": settings_path, "loaded": settings_loaded, "sha256": settings_checksum},
         "resources": {"stopwordsPath": resource_path, "loaded": resource_loaded, "sha256": resource_checksum},

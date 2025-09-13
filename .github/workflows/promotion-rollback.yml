@@ -110,7 +110,7 @@ jobs:
           echo "🧭 Starting rollback workflow"
           APPTRUST_BASE_URL="/apptrust/api/v1"
 
-          # Derive application key from repo name (e.g., bookverse-recommendations -> bookverse-recommendations)
+          # Derive application key from repo name (e.g., bookverse-inventory -> bookverse-inventory)
           SERVICE_NAME=$(echo "${GITHUB_REPOSITORY#*/}" | sed 's/bookverse-//')
           APP_KEY="bookverse-$SERVICE_NAME"
           echo "📦 Application: $APP_KEY"
@@ -308,5 +308,3 @@ jobs:
             echo "${MSG}" >&2
             exit 1
           fi
-
-
