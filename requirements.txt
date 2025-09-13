@@ -6,6 +6,3 @@ pytest==8.3.2
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.9
 requests==2.31.0
-
-
-bookverse-core @ file:./libs/bookverse-core
