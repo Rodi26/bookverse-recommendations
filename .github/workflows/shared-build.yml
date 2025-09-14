@@ -68,7 +68,7 @@ jobs:
       
       - name: "🔧 JFrog CLI Setup with OIDC (Pattern 1)"
         id: jfrog-cli-setup
-        uses: jfrog/setup-jfrog-cli@v3
+        uses: EyalDelarea/setup-jfrog-cli@swampUpAppTrust
         env:
           JF_URL: ${{ vars.JFROG_URL }}
         with:
