@@ -13,17 +13,17 @@ name: CI (Legacy - DISABLED)
 #   pull_request:
 #     branches: [main]
 #   workflow_dispatch:
-    inputs:
-      reason:
-        description: 'Reason for manual CI trigger'
-        required: false
-        default: 'Manual testing'
-        type: string
-      force_app_version:
-        description: 'Force application version creation (override commit filter)'
-        required: false
-        default: false
-        type: boolean
+#     inputs:
+#       reason:
+#         description: 'Reason for manual CI trigger'
+#         required: false
+#         default: 'Manual testing'
+#         type: string
+#       force_app_version:
+#         description: 'Force application version creation (override commit filter)'
+#         required: false
+#         default: false
+#         type: boolean
 
 jobs:
   analyze-commit:
