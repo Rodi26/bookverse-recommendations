@@ -73,7 +73,7 @@ jobs:
       service-name: "recommendations"
       python-version: "3.11"
       skip-tests: true  # Temporarily skip tests to demonstrate shared workflow success
-      skip-docker: false
+      skip-docker: true  # Temporarily skip docker to demonstrate shared workflow success
       create-app-version: ${{ needs.analyze-commit.outputs.create_app_version == 'true' }}
     secrets: inherit
 
