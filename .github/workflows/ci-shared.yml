@@ -1,0 +1,109 @@
+name: CI (Shared Workflows)
+
+# MIGRATION: Using shared workflows from bookverse-devops to eliminate code duplication
+# This replaces the 1,446-line custom CI workflow with shared, standardized workflows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual CI trigger'
+        required: false
+        default: 'Manual testing'
+        type: string
+      force_app_version:
+        description: 'Force application version creation'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  # =================================================================
+  # COMMIT ANALYSIS (Simplified for demo visibility)
+  # =================================================================
+  analyze-commit:
+    name: "Analyze Commit"
+    runs-on: ubuntu-latest
+    outputs:
+      create_app_version: ${{ steps.analysis.outputs.create_version }}
+      reason: ${{ steps.analysis.outputs.reason }}
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          
+      - name: "Analyze Changes"
+        id: analysis
+        run: |
+          # Demo mode: Create app versions for visibility
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force_app_version }}" == "true" ]]; then
+            echo "create_version=true" >> $GITHUB_OUTPUT
+            echo "reason=Manual trigger with force_app_version" >> $GITHUB_OUTPUT
+            echo "✅ Forced application version creation"
+            exit 0
+          fi
+          
+          # Check for significant changes (app/, config/, requirements.txt)
+          if git diff --name-only HEAD~1 HEAD | grep -E '^(app/|config/|requirements\.txt|Dockerfile)'; then
+            echo "create_version=true" >> $GITHUB_OUTPUT
+            echo "reason=Significant changes detected" >> $GITHUB_OUTPUT
+            echo "✅ Application version will be created"
+          else
+            echo "create_version=false" >> $GITHUB_OUTPUT  
+            echo "reason=No significant changes" >> $GITHUB_OUTPUT
+            echo "ℹ️ No application version needed"
+          fi
+
+  # =================================================================
+  # SHARED BUILD WORKFLOW (Replaces ~1,400 lines of custom code)
+  # =================================================================
+  build:
+    name: "Build & Test"
+    needs: analyze-commit
+    uses: yonatanp-jfrog/bookverse-demo-init/.github/workflows/shared-build.yml@main
+    with:
+      service-name: "recommendations"
+      python-version: "3.11"
+      skip-tests: false
+      skip-docker: false
+      create-app-version: ${{ needs.analyze-commit.outputs.create_app_version == 'true' }}
+    secrets: inherit
+
+  # =================================================================
+  # SUMMARY
+  # =================================================================
+  summary:
+    name: "Build Summary"
+    needs: [analyze-commit, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📋 Summary"
+        run: |
+          echo "## 🎯 BookVerse Recommendations CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service**: recommendations" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Analysis**: ${{ needs.analyze-commit.outputs.reason }}" >> $GITHUB_STEP_SUMMARY
+          echo "**App Version**: ${{ needs.analyze-commit.outputs.create_app_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.build.result }}" == "success" ]]; then
+            echo "✅ **Build Status**: SUCCESS" >> $GITHUB_STEP_SUMMARY
+            echo "📦 **Version**: ${{ needs.build.outputs.semver }}" >> $GITHUB_STEP_SUMMARY
+            echo "🏗️ **Build**: ${{ needs.build.outputs.build-name }} #${{ needs.build.outputs.build-number }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Build Status**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔄 Migration Success!" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Using shared build workflow (eliminated 1,400+ lines of duplication)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Standardized OIDC authentication" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Consistent versioning and artifact management" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ bookverse-core authentication integration" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,69 @@
+name: Promote (Shared Workflow)
+
+# MIGRATION: Using shared promotion workflow from bookverse-demo-init
+# This replaces the 378-line custom promotion workflow with shared, standardized logic
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_stage:
+        description: 'Target stage (DEV, QA, STAGING, PROD)'
+        required: true
+        type: choice
+        default: 'PROD'
+        options:
+          - DEV
+          - QA
+          - STAGING
+          - PROD
+      application_version:
+        description: 'Application version (SemVer) to promote (leave empty for latest)'
+        required: false
+        type: string
+
+jobs:
+  # =================================================================
+  # SHARED PROMOTION WORKFLOW (Replaces ~380 lines of custom code)
+  # =================================================================
+  promote:
+    name: "Promote to ${{ inputs.target_stage }}"
+    uses: yonatanp-jfrog/bookverse-demo-init/.github/workflows/promote.reusable.yml@main
+    with:
+      target_stage: ${{ inputs.target_stage }}
+      application_version: ${{ inputs.application_version }}
+      service_name: "recommendations"
+      oidc_provider_name: "bookverse-recommendations-github"
+      evidence_key_alias: ${{ vars.EVIDENCE_KEY_ALIAS }}
+    secrets: inherit
+
+  # =================================================================
+  # SUMMARY
+  # =================================================================
+  summary:
+    name: "Promotion Summary"
+    needs: promote
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📋 Promotion Summary"
+        run: |
+          echo "## 🚀 BookVerse Recommendations Promotion Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service**: recommendations" >> $GITHUB_STEP_SUMMARY
+          echo "**Target Stage**: ${{ inputs.target_stage }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version**: ${{ inputs.application_version || 'latest' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.promote.result }}" == "success" ]]; then
+            echo "✅ **Promotion Status**: SUCCESS" >> $GITHUB_STEP_SUMMARY
+            echo "🎯 Application successfully promoted to ${{ inputs.target_stage }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Promotion Status**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔄 Migration Success!" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Using shared promotion workflow (eliminated 380+ lines of duplication)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Standardized OIDC authentication" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Consistent promotion patterns across services" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Centralized evidence collection and validation" >> $GITHUB_STEP_SUMMARY
