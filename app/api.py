@@ -5,7 +5,16 @@ from typing import List, Set
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-logger = logging.getLogger(__name__)
+# Import standardized logging utilities
+from bookverse_core.utils.logging import (
+    get_logger,
+    log_request_start,
+    log_request_end,
+    log_error_with_context,
+    log_demo_info
+)
+
+logger = get_logger(__name__)
 
 # Import bookverse-core response models and validation utilities
 from bookverse_core.api.responses import (
@@ -51,6 +60,10 @@ indexer = Indexer()
 def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Request = None):
     """Return similar books to the provided seed `book_id` using simple rule-based scoring."""
     request_id = getattr(request.state, 'request_id', None) if request else None
+    start_time = datetime.utcnow()
+    
+    # Log request start with standardized format
+    log_request_start(logger, "GET", f"/api/v1/recommendations/similar?book_id={book_id}&limit={limit}", request_id)
     
     # Validate and sanitize book_id parameter using standardized error handling
     try:
@@ -108,6 +121,13 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Requ
 
         ranked = sorted(scored, key=lambda r: r.score, reverse=True)[:limit]
         
+        # Log successful completion
+        duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        log_request_end(logger, "GET", f"/api/v1/recommendations/similar", 200, duration_ms, request_id)
+        
+        # Log demo-specific information
+        log_demo_info(logger, f"Generated {len(ranked)} similar recommendations for book '{seed.title}' using rule-based scoring")
+        
         # Use standardized success response with metadata
         return create_success_response(
             data=ranked,
@@ -116,6 +136,14 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Requ
         )
         
     except Exception as e:
+        # Log error with context using standardized logging
+        log_error_with_context(
+            logger, 
+            e, 
+            context=f"generate_similar_recommendations for book_id={book_id}",
+            request_id=request_id
+        )
+        
         # Handle unexpected errors in recommendation generation
         context = create_error_context(
             request_id=request_id,

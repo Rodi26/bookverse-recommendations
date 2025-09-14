@@ -5,9 +5,9 @@ from datetime import datetime
 
 import httpx
 from bookverse_core.config import BaseConfig
+from bookverse_core.utils.logging import get_logger, log_error_with_context
 
-
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 INVENTORY_BASE_URL = os.getenv("INVENTORY_BASE_URL", "http://inventory")
 

@@ -15,15 +15,35 @@ import os
 import hashlib
 from fastapi import FastAPI
 
-# Import bookverse-core app factory and configuration
+# Import bookverse-core app factory, configuration, and logging
 from bookverse_core.api.app_factory import create_app
 from bookverse_core.config import BaseConfig
+from bookverse_core.utils.logging import (
+    setup_logging,
+    LogConfig,
+    get_logger,
+    log_service_startup
+)
 
 from .api import router as api_router
 from .settings import get_config, load_settings
 
+# Setup standardized logging first
+log_config = LogConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    include_request_id=True
+)
+setup_logging(log_config, "recommendations")
+
+# Get logger for this module
+logger = get_logger(__name__)
+
 # Create configuration instance using enhanced settings
 config = get_config()
+
+# Log service startup
+service_version = os.getenv("SERVICE_VERSION", "0.1.0-dev")
+log_service_startup(logger, "BookVerse Recommendations Service", service_version)
 
 # Create FastAPI app using bookverse-core factory
 app = create_app(
