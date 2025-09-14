@@ -242,16 +242,7 @@ jobs:
           
           # Calculate actual coverage percentage
           if [ -f "coverage.xml" ]; then
-            COVERAGE_PERCENT=$(python -c "
-import xml.etree.ElementTree as ET
-try:
-    tree = ET.parse('coverage.xml')
-    root = tree.getroot()
-    line_rate = root.get('line-rate', '0.85')
-    print(f'{float(line_rate) * 100:.1f}')
-except:
-    print('85.0')
-            ")
+            COVERAGE_PERCENT=$(python -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage.xml'); root = tree.getroot(); line_rate = root.get('line-rate', '0.85'); print(f'{float(line_rate) * 100:.1f}')" 2>/dev/null || echo "85.0")
           else
             COVERAGE_PERCENT="85.0"
           fi
