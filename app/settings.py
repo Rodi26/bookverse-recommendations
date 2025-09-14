@@ -107,11 +107,11 @@ class RecommendationsConfig(BaseConfig):
         yaml_data = {}
         if yaml is not None and os.path.exists(config_path):
             try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        yaml_data = yaml.safe_load(f) or {}
-                except Exception as e:
-                    logger = get_logger(__name__)
-                    logger.error(f"Failed to load YAML configuration from {config_path}: {e}")
+                with open(config_path, "r", encoding="utf-8") as f:
+                    yaml_data = yaml.safe_load(f) or {}
+            except Exception as e:
+                logger = get_logger(__name__)
+                logger.error(f"Failed to load YAML configuration from {config_path}: {e}")
         
         # Apply environment variable overrides
         env_overrides = {}

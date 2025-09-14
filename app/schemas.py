@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Import bookverse-core validation utilities
 from bookverse_core.utils.validation import (
@@ -20,13 +20,14 @@ class BookLite(BaseModel):
     """Minimal book representation used in recommendations with enhanced validation."""
     id: str = Field(..., description="Unique book identifier")
     title: str = Field(..., min_length=1, max_length=500, description="Book title")
-    authors: List[str] = Field(..., min_items=1, description="List of book authors")
-    genres: List[str] = Field(..., min_items=1, description="List of book genres")
+    authors: List[str] = Field(..., min_length=1, description="List of book authors")
+    genres: List[str] = Field(..., min_length=1, description="List of book genres")
     price: float = Field(..., ge=0.0, description="Book price (must be non-negative)")
     cover_image_url: str = Field(..., description="URL to book cover image")
     availability: Availability
     
-    @validator('id')
+    @field_validator('id')
+    @classmethod
     def validate_book_id(cls, v):
         """Validate book ID format."""
         if not v or not isinstance(v, str):
@@ -39,7 +40,8 @@ class BookLite(BaseModel):
         
         return sanitized_id
     
-    @validator('title')
+    @field_validator('title')
+    @classmethod
     def validate_title(cls, v):
         """Validate and sanitize book title."""
         if not v or not isinstance(v, str):
@@ -51,31 +53,48 @@ class BookLite(BaseModel):
         
         return sanitized_title
     
-    @validator('authors', each_item=True)
+    @field_validator('authors')
+    @classmethod
     def validate_author_names(cls, v):
         """Validate and sanitize author names."""
-        if not v or not isinstance(v, str):
-            raise ValueError("Author name must be a non-empty string")
+        if not isinstance(v, list):
+            raise ValueError("Authors must be a list")
         
-        sanitized_author = sanitize_string(v, max_length=200)
-        if len(sanitized_author) < 1:
-            raise ValueError("Author name cannot be empty after sanitization")
+        validated_authors = []
+        for author in v:
+            if not author or not isinstance(author, str):
+                raise ValueError("Author name must be a non-empty string")
+            
+            sanitized_author = sanitize_string(author, max_length=200)
+            if len(sanitized_author) < 1:
+                raise ValueError("Author name cannot be empty after sanitization")
+            
+            validated_authors.append(sanitized_author)
         
-        return sanitized_author
+        return validated_authors
     
-    @validator('genres', each_item=True)
+    @field_validator('genres')
+    @classmethod
     def validate_genre_names(cls, v):
         """Validate and sanitize genre names."""
-        if not v or not isinstance(v, str):
-            raise ValueError("Genre name must be a non-empty string")
+        if not isinstance(v, list):
+            raise ValueError("Genres must be a list")
         
-        sanitized_genre = sanitize_string(v, max_length=100)
-        if len(sanitized_genre) < 1:
-            raise ValueError("Genre name cannot be empty after sanitization")
+        validated_genres = []
+        for genre in v:
+            if not genre or not isinstance(genre, str):
+                raise ValueError("Genre name must be a non-empty string")
+            
+            sanitized_genre = sanitize_string(genre, max_length=100)
+            if len(sanitized_genre) < 1:
+                raise ValueError("Genre name cannot be empty after sanitization")
+            
+            validated_genres.append(sanitized_genre)
         
-        return sanitized_genre
+        return validated_genres
     
-    @validator('cover_image_url')
+    @field_validator('cover_image_url')
+    @classmethod
     def validate_cover_url(cls, v):
         """Validate cover image URL."""
         if not v or not isinstance(v, str):
@@ -111,14 +130,15 @@ class RecommendationResponse(BaseModel):
 class PersonalizedRequest(BaseModel):
     """Optional context and seeds for personalized recommendations with enhanced validation."""
     user_id: Optional[str] = Field(None, description="User identifier for personalization")
-    seed_book_ids: Optional[List[str]] = Field(None, max_items=20, description="Book IDs to base recommendations on")
-    recently_viewed: Optional[List[str]] = Field(None, max_items=50, description="Recently viewed book IDs")
-    cart_book_ids: Optional[List[str]] = Field(None, max_items=20, description="Book IDs in user's cart")
-    seed_genres: Optional[List[str]] = Field(None, max_items=10, description="Preferred genres")
-    seed_authors: Optional[List[str]] = Field(None, max_items=10, description="Preferred authors")
+    seed_book_ids: Optional[List[str]] = Field(None, max_length=20, description="Book IDs to base recommendations on")
+    recently_viewed: Optional[List[str]] = Field(None, max_length=50, description="Recently viewed book IDs")
+    cart_book_ids: Optional[List[str]] = Field(None, max_length=20, description="Book IDs in user's cart")
+    seed_genres: Optional[List[str]] = Field(None, max_length=10, description="Preferred genres")
+    seed_authors: Optional[List[str]] = Field(None, max_length=10, description="Preferred authors")
     limit: Optional[int] = Field(10, ge=1, le=50, description="Maximum number of recommendations to return")
     
-    @validator('user_id')
+    @field_validator('user_id')
+    @classmethod
     def validate_user_id(cls, v):
         """Validate user ID format."""
         if v is None:
@@ -137,38 +157,54 @@ class PersonalizedRequest(BaseModel):
         
         return sanitized_id
     
-    @validator('seed_book_ids', 'recently_viewed', 'cart_book_ids', each_item=True)
+    @field_validator('seed_book_ids', 'recently_viewed', 'cart_book_ids')
+    @classmethod
     def validate_book_ids(cls, v):
         """Validate book ID formats in lists."""
         if v is None:
             return v
         
-        if not isinstance(v, str):
-            raise ValueError("Book ID must be a string")
+        if not isinstance(v, list):
+            raise ValueError("Book IDs must be a list")
         
-        sanitized_id = sanitize_string(v, max_length=100)
-        if len(sanitized_id) < 1:
-            raise ValueError("Book ID cannot be empty after sanitization")
+        validated_ids = []
+        for book_id in v:
+            if not isinstance(book_id, str):
+                raise ValueError("Book ID must be a string")
+            
+            sanitized_id = sanitize_string(book_id, max_length=100)
+            if len(sanitized_id) < 1:
+                raise ValueError("Book ID cannot be empty after sanitization")
+            
+            validated_ids.append(sanitized_id)
         
-        return sanitized_id
+        return validated_ids
     
-    @validator('seed_genres', 'seed_authors', each_item=True)
+    @field_validator('seed_genres', 'seed_authors')
+    @classmethod
     def validate_seed_strings(cls, v):
         """Validate genre and author names in seed lists."""
         if v is None:
             return v
         
-        if not isinstance(v, str):
-            raise ValueError("Genre/Author name must be a string")
+        if not isinstance(v, list):
+            raise ValueError("Genre/Author names must be a list")
         
-        sanitized_name = sanitize_string(v, max_length=200)
-        if len(sanitized_name) < 1:
-            raise ValueError("Genre/Author name cannot be empty after sanitization")
+        validated_names = []
+        for name in v:
+            if not isinstance(name, str):
+                raise ValueError("Genre/Author name must be a string")
+            
+            sanitized_name = sanitize_string(name, max_length=200)
+            if len(sanitized_name) < 1:
+                raise ValueError("Genre/Author name cannot be empty after sanitization")
+            
+            validated_names.append(sanitized_name)
         
-        return sanitized_name
+        return validated_names
     
-    @root_validator
-    def validate_at_least_one_input(cls, values):
+    @model_validator(mode='after')
+    def validate_at_least_one_input(self):
         """Ensure at least one personalization input is provided."""
         personalization_fields = [
             'seed_book_ids', 'recently_viewed', 'cart_book_ids', 
@@ -176,7 +212,7 @@ class PersonalizedRequest(BaseModel):
         ]
         
         has_input = any(
-            values.get(field) and len(values.get(field, [])) > 0 
+            getattr(self, field) and len(getattr(self, field, [])) > 0 
             for field in personalization_fields
         )
         
@@ -186,6 +222,6 @@ class PersonalizedRequest(BaseModel):
             # In a real system, you might want to log this or handle differently
             pass
         
-        return values
+        return self
 
 

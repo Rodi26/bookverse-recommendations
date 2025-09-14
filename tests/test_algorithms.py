@@ -9,7 +9,7 @@ def make_book(id_: str, genres, authors, in_stock=True):
         authors=list(authors),
         genres=list(genres),
         price=10.0,
-        cover_image_url="",
+        cover_image_url="https://example.com/cover.jpg",
         availability=Availability(quantity_available=1 if in_stock else 0, in_stock=in_stock, low_stock=False),
     )
 
