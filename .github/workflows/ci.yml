@@ -46,9 +46,11 @@ jobs:
           echo "🏭 Production note: Real systems would use conservative defaults"
           echo ""
           
-          # Use our commit analysis script
-          chmod +x ./scripts/analyze-commit.sh
-          ./scripts/analyze-commit.sh
+          # Use shared bookverse-devops commit analysis script
+          echo "🔗 Using shared commit analysis script from bookverse-devops"
+          chmod +x ../bookverse-demo-init/bookverse-devops/scripts/analyze-commit.sh
+          ../bookverse-demo-init/bookverse-devops/scripts/analyze-commit.sh
+          echo "✅ Commit analysis completed using shared script"
 
   build-test-publish:
     name: "Build & Test (Always Runs)"
