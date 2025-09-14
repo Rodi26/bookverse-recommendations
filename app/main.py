@@ -20,22 +20,10 @@ from bookverse_core.api.app_factory import create_app
 from bookverse_core.config import BaseConfig
 
 from .api import router as api_router
-from .settings import load_settings
+from .settings import get_config, load_settings
 
-
-class RecommendationsConfig(BaseConfig):
-    """Configuration for the recommendations service."""
-    
-    def __init__(self):
-        super().__init__()
-        self.service_name = "recommendations"
-        self.api_version = "v1"
-        # Enable authentication for production, but keep flexible for demo
-        self.auth_enabled = os.getenv("AUTH_ENABLED", "true").lower() == "true"
-
-
-# Create configuration instance
-config = RecommendationsConfig()
+# Create configuration instance using enhanced settings
+config = get_config()
 
 # Create FastAPI app using bookverse-core factory
 app = create_app(
@@ -107,10 +95,30 @@ def get_recommendations_info():
     # Combine base info with service-specific details
     base_info.update({
         "build": {"imageTag": image_tag, "appVersion": app_version},
-        "config": {"path": settings_path, "loaded": settings_loaded, "sha256": settings_checksum},
+        "config": {
+            "path": config.config_path,
+            "loaded": settings_loaded, 
+            "sha256": settings_checksum,
+            "validation": "pydantic",
+            "environment_overrides": "RECO_* supported"
+        },
         "resources": {"stopwordsPath": resource_path, "loaded": resource_loaded, "sha256": resource_checksum},
-        "limits": s.get("limits", {}),
-        "features": s.get("features", {}),
+        "algorithm_config": {
+            "weights": {
+                "genre": config.weights.genre,
+                "author": config.weights.author,
+                "popularity": config.weights.popularity,
+            },
+            "limits": {
+                "default": config.limits.default,
+                "max": config.limits.max,
+            },
+            "features": {
+                "filter_out_of_stock": config.features.filter_out_of_stock,
+                "enable_cache": config.features.enable_cache,
+                "ttl_seconds": config.features.ttl_seconds,
+            }
+        },
         "middleware": {
             "cors_enabled": True,
             "auth_enabled": config.auth_enabled,
