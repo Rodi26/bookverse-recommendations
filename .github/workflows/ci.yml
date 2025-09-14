@@ -40,6 +40,7 @@ jobs:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
           token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: "[Demo] Commit Analysis (Optimized for Visibility)"
         id: demo-filter
@@ -55,7 +56,11 @@ jobs:
           
           # Use shared bookverse-devops commit analysis script
           echo "🔗 Using shared commit analysis script from bookverse-devops"
+          echo "📂 Current directory: $(pwd)"
+          echo "📁 Checking if script exists: $(ls -la bookverse-infra/libraries/bookverse-devops/scripts/analyze-commit.sh 2>/dev/null || echo 'NOT FOUND')"
+          echo "🔧 Making script executable..."
           chmod +x bookverse-infra/libraries/bookverse-devops/scripts/analyze-commit.sh
+          echo "🚀 Running script..."
           bookverse-infra/libraries/bookverse-devops/scripts/analyze-commit.sh
           echo "✅ Commit analysis completed using shared script"
 
@@ -86,6 +91,7 @@ jobs:
         with:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
+          token: ${{ secrets.GITHUB_TOKEN }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Info] Trigger Information"
@@ -590,6 +596,7 @@ jobs:
         with:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
+          token: ${{ secrets.GITHUB_TOKEN }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Setup] JFrog CLI"
