@@ -170,7 +170,7 @@ jobs:
           echo "📋 Using shared semver logic from bookverse-infra"
           
           # Copy shared scripts from bookverse-infra/libraries/bookverse-devops
-          INFRA_SCRIPTS_PATH="../../../bookverse-infra/libraries/bookverse-devops/scripts"
+          INFRA_SCRIPTS_PATH="bookverse-infra/libraries/bookverse-devops/scripts"
           if [[ -f "$INFRA_SCRIPTS_PATH/determine-semver.sh" ]]; then
             cp "$INFRA_SCRIPTS_PATH/determine-semver.sh" .
             cp "$INFRA_SCRIPTS_PATH/semver_versioning.py" .
@@ -643,7 +643,7 @@ jobs:
           echo "📋 Using shared semver logic from bookverse-infra"
           
           # Copy shared scripts from bookverse-infra/libraries/bookverse-devops
-          INFRA_SCRIPTS_PATH="../../../bookverse-infra/libraries/bookverse-devops/scripts"
+          INFRA_SCRIPTS_PATH="bookverse-infra/libraries/bookverse-devops/scripts"
           if [[ -f "$INFRA_SCRIPTS_PATH/determine-semver.sh" ]]; then
             cp "$INFRA_SCRIPTS_PATH/determine-semver.sh" .
             cp "$INFRA_SCRIPTS_PATH/semver_versioning.py" .
