@@ -282,7 +282,10 @@ jobs:
             requests==2.31.0 \
             starlette==0.37.2 \
             pydantic==2.11.9 \
-            typing-extensions==4.15.0
+            typing-extensions==4.15.0 \
+            python-jose \
+            python-multipart \
+            PyYAML
           
           echo "✅ Installed dependencies from pre-populated JFrog repository"
           
