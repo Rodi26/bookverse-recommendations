@@ -34,6 +34,13 @@ jobs:
         with:
           fetch-depth: 2
       
+      - name: "[Setup] Checkout bookverse-infra for shared scripts"
+        uses: actions/checkout@v4
+        with:
+          repository: yonatanp-jfrog/bookverse-infra
+          path: ../../../bookverse-infra
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: "[Demo] Commit Analysis (Optimized for Visibility)"
         id: demo-filter
         env:
@@ -73,6 +80,13 @@ jobs:
     steps:
       - name: "[Setup] Checkout"
         uses: actions/checkout@v4
+
+      - name: "[Setup] Checkout bookverse-infra for shared scripts"
+        uses: actions/checkout@v4
+        with:
+          repository: yonatanp-jfrog/bookverse-infra
+          path: ../../../bookverse-infra
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Info] Trigger Information"
         run: |
@@ -570,6 +584,13 @@ jobs:
     steps:
       - name: "[Setup] Checkout"
         uses: actions/checkout@v4
+
+      - name: "[Setup] Checkout bookverse-infra for shared scripts"
+        uses: actions/checkout@v4
+        with:
+          repository: yonatanp-jfrog/bookverse-infra
+          path: ../../../bookverse-infra
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Setup] JFrog CLI"
         uses: jfrog/setup-jfrog-cli@v4
