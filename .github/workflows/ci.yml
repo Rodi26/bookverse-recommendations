@@ -286,6 +286,12 @@ jobs:
           
           echo "✅ Installed dependencies from pre-populated JFrog repository"
           
+          # Add bookverse-core to Python path for imports
+          if [ -d "libs/bookverse-core" ]; then
+            echo "PYTHONPATH=$PWD/libs/bookverse-core:$PYTHONPATH" >> $GITHUB_ENV
+            echo "✅ Added bookverse-core to Python path"
+          fi
+          
           echo "✅ Dependencies installed using bookverse-core patterns"
 
       - name: "[Test] Run with coverage (Optimized with bookverse-core)"
