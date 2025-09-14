@@ -457,8 +457,8 @@ jobs:
         run: |
           echo "🛡️ Creating AppTrust application version"
           
-          # Create application version with build binding
-          jf app create-version \
+          # Create application version with build binding (FIXED: jf ap not jf app)
+          jf ap create-version \
             --app-key="${{ vars.PROJECT_KEY }}-${{ inputs.service-name }}" \
             --version="${{ steps.semver.outputs.version }}" \
             --build-name="${{ steps.build-vars.outputs.build-name }}" \
