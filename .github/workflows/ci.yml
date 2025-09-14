@@ -149,7 +149,7 @@ jobs:
 
       - name: "[Setup] Install Python dependencies"
         run: |
-          pip install --user PyYAML
+          pip install --user PyYAML setuptools wheel
           echo "✅ Python dependencies installed"
 
       - name: "[Setup] Determine SemVer"
@@ -269,11 +269,8 @@ jobs:
           
           echo "📦 Installing bookverse-core and dependencies..."
           
-          # Install build dependencies first to avoid setuptools issues
-          jf pip install setuptools wheel --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
-          echo "✅ Installed build dependencies"
-          
           # Install bookverse-core first (includes standardized dependencies)
+          # Note: setuptools and wheel are prepopulated in earlier step
           if [ -d "libs/bookverse-core" ]; then
             jf pip install -e ./libs/bookverse-core --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
             echo "✅ Installed local bookverse-core"
@@ -633,7 +630,7 @@ jobs:
 
       - name: "[Setup] Install Python dependencies"
         run: |
-          pip install --user PyYAML
+          pip install --user PyYAML setuptools wheel
           echo "✅ Python dependencies installed"
 
       - name: "[Setup] Determine SemVer"
