@@ -259,30 +259,17 @@ jobs:
           # Use consolidated semver determination from bookverse-devops
           # DEMO PURPOSE: Shows how semver logic is consolidated into shared workflows
           
-          if [ -f "scripts/semver_versioning.py" ]; then
-            echo "📋 Using consolidated semver script from bookverse-devops"
-            python scripts/semver_versioning.py \
-              --application-key "${{ vars.PROJECT_KEY }}-${{ inputs.service-name }}" \
-              --version-map "./config/version-map.yaml" \
-              --jfrog-url "${{ vars.JFROG_URL }}" \
-              --jfrog-token "${{ env.JF_OIDC_TOKEN }}" \
-              --project-key "${{ vars.PROJECT_KEY }}" || {
-                echo "⚠️ Consolidated semver script failed, using fallback"
-                VERSION="1.0.$(git rev-list --count HEAD)"
-                echo "version=$VERSION" >> $GITHUB_OUTPUT
-                echo "✅ Fallback version: $VERSION"
-              }
-          else
-            echo "📋 Semver scripts not available, using simple versioning"
-            # In production: Download from bookverse-devops repository
-            # curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            #   -o determine-semver.sh \
-            #   https://raw.githubusercontent.com/org/bookverse-devops/main/scripts/determine-semver.sh
-            
-            VERSION="1.0.$(git rev-list --count HEAD)"
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "✅ Generated version: $VERSION (demo fallback)"
-          fi
+          # CRITICAL FIX: Always use simple versioning for now
+          # The consolidated semver script has dependency issues
+          echo "📋 Using simple versioning (semver script has issues)"
+          VERSION="1.0.$(git rev-list --count HEAD)"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Generated version: $VERSION"
+          
+          # Also set IMAGE_TAG for Docker builds
+          IMAGE_TAG="$VERSION"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          echo "✅ Set IMAGE_TAG environment variable: $IMAGE_TAG"
       
       - name: "🔨 Setup Build Variables"
         id: build-vars
@@ -359,13 +346,14 @@ jobs:
           echo "🐳 Building Docker image for ${{ inputs.service-name }}"
           
           if [ -f "Dockerfile" ]; then
-            IMAGE_TAG="${{ vars.PROJECT_KEY }}-${{ inputs.service-name }}:${{ steps.semver.outputs.version }}"
+            # CRITICAL FIX: Use proper IMAGE_TAG format with version
+            FULL_IMAGE_TAG="${{ vars.PROJECT_KEY }}-${{ inputs.service-name }}:${{ steps.semver.outputs.version }}"
             
-            docker build -t "$IMAGE_TAG" .
-            echo "✅ Docker image built: $IMAGE_TAG"
+            docker build -t "$FULL_IMAGE_TAG" .
+            echo "✅ Docker image built: $FULL_IMAGE_TAG"
             
             # Save image info for publishing
-            echo "docker-image=$IMAGE_TAG" >> $GITHUB_OUTPUT
+            echo "docker-image=$FULL_IMAGE_TAG" >> $GITHUB_OUTPUT
           else
             echo "⚠️ No Dockerfile found, skipping Docker build"
           fi
@@ -391,8 +379,8 @@ jobs:
           # Publish Docker images
           if [ -f "Dockerfile" ] && [ ! "${{ inputs.skip-docker }}" = "true" ]; then
             echo "🐳 Publishing Docker image..."
-            IMAGE_TAG="${{ vars.PROJECT_KEY }}-${{ inputs.service-name }}:${{ steps.semver.outputs.version }}"
-            jf docker push "$IMAGE_TAG" "$REPO_BASE-docker-nonprod-local" --build-name="${{ steps.build-vars.outputs.build-name }}" --build-number="${{ steps.build-vars.outputs.build-number }}"
+            FULL_IMAGE_TAG="${{ vars.PROJECT_KEY }}-${{ inputs.service-name }}:${{ steps.semver.outputs.version }}"
+            jf docker push "$FULL_IMAGE_TAG" "$REPO_BASE-docker-nonprod-local" --build-name="${{ steps.build-vars.outputs.build-name }}" --build-number="${{ steps.build-vars.outputs.build-number }}"
           fi
           
           # Publish generic artifacts (configs, schemas, etc.)
