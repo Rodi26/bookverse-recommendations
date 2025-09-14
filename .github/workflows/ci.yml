@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: yonatanp-jfrog/bookverse-infra
-          path: ../../../bookverse-infra
+          path: bookverse-infra
           token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: "[Demo] Commit Analysis (Optimized for Visibility)"
@@ -55,8 +55,8 @@ jobs:
           
           # Use shared bookverse-devops commit analysis script
           echo "🔗 Using shared commit analysis script from bookverse-devops"
-          chmod +x ../../../bookverse-infra/libraries/bookverse-devops/scripts/analyze-commit.sh
-          ../../../bookverse-infra/libraries/bookverse-devops/scripts/analyze-commit.sh
+          chmod +x bookverse-infra/libraries/bookverse-devops/scripts/analyze-commit.sh
+          bookverse-infra/libraries/bookverse-devops/scripts/analyze-commit.sh
           echo "✅ Commit analysis completed using shared script"
 
   build-test-publish:
@@ -85,7 +85,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: yonatanp-jfrog/bookverse-infra
-          path: ../../../bookverse-infra
+          path: bookverse-infra
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Info] Trigger Information"
@@ -136,7 +136,7 @@ jobs:
         run: |
           echo "🔐 Using bookverse-devops shared OIDC exchange script"
           # Use shared script to eliminate ~40 lines of duplicate OIDC logic
-          ../../../bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh \
+          bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh \
             --service-name "recommendations" \
             --provider-name "bookverse-recommendations-github" \
             --jfrog-url "${{ vars.JFROG_URL }}" \
@@ -335,7 +335,7 @@ jobs:
           echo "📊 Generating evidence for API image package"
           
           # Source the evidence library
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Set package-specific environment variables
           export PACKAGE_NAME="recommendations"
@@ -371,7 +371,7 @@ jobs:
           echo "📦 Generating evidence for config package"
           
           # Source the evidence library
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Set package-specific environment variables
           export PACKAGE_NAME="recommendation-config"
@@ -407,7 +407,7 @@ jobs:
           echo "📚 Generating evidence for resources package"
           
           # Source the evidence library
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Set package-specific environment variables
           export PACKAGE_NAME="resources"
@@ -450,7 +450,7 @@ jobs:
           echo "🔧 Generating evidence for worker image package"
           
           # Source the evidence library
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Set package-specific environment variables
           export PACKAGE_NAME="recommendations-worker"
@@ -547,7 +547,7 @@ jobs:
           echo "🏗️ Generating evidence for build-info"
           
           # Source the evidence library
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Build evidence uses auto-detected environment variables
           
@@ -589,7 +589,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: yonatanp-jfrog/bookverse-infra
-          path: ../../../bookverse-infra
+          path: bookverse-infra
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Setup] JFrog CLI"
@@ -606,7 +606,7 @@ jobs:
         run: |
           echo "🔐 Using bookverse-devops shared OIDC exchange script (no Docker login needed)"
           # Use shared script to eliminate ~25 lines of duplicate OIDC logic
-          ../../../bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh \
+          bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh \
             --service-name "recommendations" \
             --provider-name "bookverse-recommendations-github" \
             --jfrog-url "${{ vars.JFROG_URL }}" \
@@ -754,7 +754,7 @@ jobs:
           echo "📋 Generating evidence for application version (UNASSIGNED stage)"
           
           # Source the evidence library
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Application evidence uses auto-detected environment variables
           
@@ -769,7 +769,7 @@ jobs:
           echo "🚀 Promoting to DEV stage and generating evidence"
           
           # Source evidence library (includes promotion setup)
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
           # Promote to DEV
@@ -790,7 +790,7 @@ jobs:
           echo "🔍 Promoting to QA stage and generating evidence"
           
           # Source evidence library (includes promotion setup)
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
           # Promote to QA
@@ -811,7 +811,7 @@ jobs:
           echo "🏗️ Promoting to STAGING stage and generating evidence"
           
           # Source evidence library (includes promotion setup)
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
           # Promote to STAGING
@@ -832,7 +832,7 @@ jobs:
           echo "🚀 Promoting to PROD stage and generating evidence"
           
           # Source evidence library (includes promotion setup)
-          source ../../../bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
           # Promote to PROD
