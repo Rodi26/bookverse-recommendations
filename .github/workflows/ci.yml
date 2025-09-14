@@ -280,7 +280,11 @@ jobs:
             fastapi \
             uvicorn \
             pydantic \
-            requests
+            pydantic-core \
+            starlette \
+            requests \
+            typing-extensions \
+            annotated-types
           
           # Add bookverse-core to Python path instead of installing in editable mode
           if [ -d "libs/bookverse-core" ]; then
