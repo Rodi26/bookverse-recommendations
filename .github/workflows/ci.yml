@@ -197,7 +197,9 @@ jobs:
           echo "🔍 End of raw output"
           
           # Extract APP_VERSION and individual package versions from the Python script's JSON output
-          APP_VERSION=$(echo "$SEMVER_OUTPUT" | grep '{"application_key"' | jq -r '.app_version')
+          JSON_LINE=$(echo "$SEMVER_OUTPUT" | grep '{"application_key"')
+          echo "🔍 Extracted JSON line: $JSON_LINE"
+          APP_VERSION=$(echo "$JSON_LINE" | jq -r '.app_version')
           if [[ -z "$APP_VERSION" || "$APP_VERSION" == "null" ]]; then
             echo "❌ Failed to extract APP_VERSION from semver output" >&2
             exit 1
@@ -207,10 +209,10 @@ jobs:
           echo "📋 Extracting individual package versions from JSON output:"
           
           # Extract package versions from the JSON package_tags field
-          RECOMMENDATIONS_VERSION=$(echo "$SEMVER_OUTPUT" | jq -r '.package_tags.recommendations // empty')
-          WORKER_VERSION=$(echo "$SEMVER_OUTPUT" | jq -r '.package_tags."recommendations-worker" // empty')
-          CONFIG_VERSION=$(echo "$SEMVER_OUTPUT" | jq -r '.package_tags."recommendation-config" // empty')
-          RESOURCES_VERSION=$(echo "$SEMVER_OUTPUT" | jq -r '.package_tags.resources // empty')
+          RECOMMENDATIONS_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags.recommendations // empty')
+          WORKER_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags."recommendations-worker" // empty')
+          CONFIG_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags."recommendation-config" // empty')
+          RESOURCES_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags.resources // empty')
           
           # Fallback to build number if any version is empty
           RECOMMENDATIONS_VERSION=${RECOMMENDATIONS_VERSION:-$BUILD_NUMBER}
@@ -669,7 +671,8 @@ jobs:
             --verbose)
           
           # Extract APP_VERSION from the Python script's JSON output (same as first semver call)
-          APP_VERSION=$(echo "$SEMVER_OUTPUT" | grep '{"application_key"' | jq -r '.app_version')
+          JSON_LINE=$(echo "$SEMVER_OUTPUT" | grep '{"application_key"')
+          APP_VERSION=$(echo "$JSON_LINE" | jq -r '.app_version')
           if [[ -z "$APP_VERSION" || "$APP_VERSION" == "null" ]]; then
             echo "❌ Failed to extract APP_VERSION from semver output" >&2
             exit 1
