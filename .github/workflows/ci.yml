@@ -270,7 +270,7 @@ jobs:
           echo "📦 Installing bookverse-core and dependencies..."
           # Install bookverse-core first (includes standardized dependencies)
           if [ -d "libs/bookverse-core" ]; then
-            pip install -e ./libs/bookverse-core --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
+            jf pip install -e ./libs/bookverse-core --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
             echo "✅ Installed local bookverse-core"
           fi
           
