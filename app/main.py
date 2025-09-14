@@ -15,8 +15,10 @@ import os
 import hashlib
 from fastapi import FastAPI
 
-# Import bookverse-core app factory, configuration, and logging
+# Import bookverse-core app factory, configuration, logging, middleware, and health
 from bookverse_core.api.app_factory import create_app
+from bookverse_core.api.middleware import RequestIDMiddleware, RequestLoggingMiddleware
+from bookverse_core.api.health import create_health_router
 from bookverse_core.config import BaseConfig
 from bookverse_core.utils.logging import (
     setup_logging,
@@ -64,9 +66,28 @@ app = create_app(
         "logging": {
             "log_request_body": False,  # Don't log request bodies for performance
             "log_response_body": False,  # Don't log response bodies for performance
+        },
+        "request_id": {
+            "header_name": "X-Request-ID",  # Standard request ID header
+            "generate_if_missing": True,    # Auto-generate if not provided
+        },
+        "request_logging": {
+            "enabled": True,                # Enable request/response logging
+            "log_level": "INFO",           # Log level for requests
+            "include_headers": False,       # Don't log headers for security
         }
     }
 )
+
+# Add bookverse-core middleware for enhanced request tracing and logging
+app.add_middleware(RequestIDMiddleware, header_name="X-Request-ID")
+app.add_middleware(RequestLoggingMiddleware, 
+                  log_level="INFO", 
+                  include_headers=False,
+                  log_request_body=False,
+                  log_response_body=False)
+
+logger.info("✅ Enhanced middleware added: Request ID tracking and request logging")
 
 # Add custom /info endpoint with recommendations-specific metadata
 @app.get("/info")
@@ -153,6 +174,16 @@ def get_recommendations_info():
 
 # Include the API router
 app.include_router(api_router)
+
+# Add standardized health check router (bookverse-core) alongside existing health endpoint
+health_router = create_health_router(
+    service_name="BookVerse Recommendations Service",
+    service_version=os.getenv("SERVICE_VERSION", "0.1.0-dev"),
+    health_checks=["basic", "auth"]  # Match the health checks from create_app
+)
+app.include_router(health_router, prefix="/health", tags=["health"])
+
+logger.info("✅ Standardized health endpoints added: /health/live, /health/ready, /health/status")
 
 # Note: Health endpoints (/health, /health/live, /health/ready) are automatically 
 # added by the bookverse-core app factory, no need to define them manually!

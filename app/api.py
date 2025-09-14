@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from typing import List, Set, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Depends
 
 # Import standardized logging utilities
 from bookverse_core.utils.logging import (
@@ -24,6 +24,11 @@ from bookverse_core.api.responses import (
     create_success_response,
     create_paginated_response,
     create_health_response
+)
+from bookverse_core.api.pagination import (
+    PaginationParams,
+    create_pagination_params,
+    create_pagination_meta,
 )
 from bookverse_core.utils.validation import (
     sanitize_string,
@@ -224,8 +229,11 @@ def get_personalized(payload: PersonalizedRequest, request: Request = None):
     )
 
 
-@router.get("/api/v1/recommendations/trending", response_model=SuccessResponse[List[RecommendationItem]])
-def get_trending(limit: int = Query(10, ge=1, le=50), request: Request = None):
+@router.get("/api/v1/recommendations/trending", response_model=PaginatedResponse[RecommendationItem])
+def get_trending(
+    pagination: PaginationParams = Depends(create_pagination_params),
+    request: Request = None
+):
     """Return currently trending books based on recent stock_out popularity."""
     request_id = getattr(request.state, 'request_id', None) if request else None
     
@@ -235,28 +243,42 @@ def get_trending(limit: int = Query(10, ge=1, le=50), request: Request = None):
     except Exception as e:
         context = create_error_context(request_id=request_id, operation="ensure_indices")
         raise_upstream_error("inventory", e, "Failed to load book catalog")
-    # Generate trending recommendations with error handling
+    # Generate trending recommendations with bookverse-core pagination
     try:
+        # Get all trending books sorted by popularity
         ranked_ids = sorted(idx.book_by_id.keys(), key=lambda i: idx.popularity.get(i, 0.0), reverse=True)
-        items: List[RecommendationItem] = []
         
+        # Filter to in-stock books first
+        available_items: List[RecommendationItem] = []
         for bid in ranked_ids:
             try:
                 b = idx.book_by_id[bid]
                 if not b.availability.in_stock:
                     continue
                 s = idx.popularity.get(bid, 0.0)
-                items.append(build_recommendation_item(b, s, {"popularity": s}))
-                if len(items) >= limit:
-                    break
+                available_items.append(build_recommendation_item(b, s, {"popularity": s}))
             except Exception as e:
                 # Log individual item errors but continue processing
                 logger.warning(f"Failed to process trending book {bid}: {e}", extra={"request_id": request_id})
                 continue
         
-        return create_success_response(
-            data=items,
-            message=f"Generated {len(items)} trending recommendations from {len(ranked_ids)} total books",
+        # Apply pagination to the available items
+        total_items = len(available_items)
+        start_idx = (pagination.page - 1) * pagination.size
+        end_idx = start_idx + pagination.size
+        paginated_items = available_items[start_idx:end_idx]
+        
+        # Create pagination metadata
+        pagination_meta = create_pagination_meta(
+            page=pagination.page,
+            size=pagination.size,
+            total=total_items
+        )
+        
+        return create_paginated_response(
+            data=paginated_items,
+            pagination=pagination_meta,
+            message=f"Generated {len(paginated_items)} trending recommendations (page {pagination.page} of {pagination_meta.total_pages})",
             request_id=request_id
         )
         
