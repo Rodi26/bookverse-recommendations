@@ -40,7 +40,6 @@ jobs:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
           token: ${{ secrets.GITHUB_TOKEN }}
-          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: "[Demo] Commit Analysis (Optimized for Visibility)"
         id: demo-filter
@@ -91,7 +90,6 @@ jobs:
         with:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
-          token: ${{ secrets.GITHUB_TOKEN }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Info] Trigger Information"
@@ -596,7 +594,6 @@ jobs:
         with:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
-          token: ${{ secrets.GITHUB_TOKEN }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Setup] JFrog CLI"
