@@ -191,6 +191,11 @@ jobs:
             --packages "recommendations,recommendations-worker,recommendation-config,resources" \
             --verbose)
           
+          # Debug: Show the raw semver output
+          echo "🔍 Raw semver output:"
+          echo "$SEMVER_OUTPUT"
+          echo "🔍 End of raw output"
+          
           # Extract APP_VERSION and individual package versions from the Python script's JSON output
           APP_VERSION=$(echo "$SEMVER_OUTPUT" | grep '{"application_key"' | jq -r '.app_version')
           if [[ -z "$APP_VERSION" || "$APP_VERSION" == "null" ]]; then
