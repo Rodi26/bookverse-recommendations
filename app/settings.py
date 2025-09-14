@@ -24,6 +24,17 @@ except Exception:  # pragma: no cover
 from bookverse_core.config import BaseConfig, ConfigLoader
 from pydantic import BaseModel, Field
 
+# Legacy defaults for backward compatibility
+DEFAULTS = {
+    "weights": {"genre": 1.0, "author": 0.25, "popularity": 0.10},
+    "limits": {"default": 10, "max": 50},
+    "features": {
+        "filter_out_of_stock": True,
+        "enable_cache": False,
+        "ttl_seconds": 60,
+    },
+}
+
 
 class WeightsConfig(BaseModel):
     """Configuration for recommendation scoring weights."""
@@ -162,18 +173,31 @@ def reload_config() -> RecommendationsConfig:
 
 @lru_cache(maxsize=1)
 def load_settings() -> Dict[str, Any]:
-    """Load YAML settings using bookverse-core configuration loader."""
-    path = os.getenv("RECOMMENDATIONS_SETTINGS_PATH", "config/recommendations-settings.yaml")
+    """
+    Load YAML settings using enhanced configuration system.
     
-    # Use bookverse-core configuration loader
-    loader = ConfigLoader(RecommendationsConfig)
-    config = loader.load_from(
-        yaml_file=path,
-        defaults=DEFAULTS,
-        env_prefix="RECO_"  # Support RECO_TTL_SECONDS etc.
-    )
+    MIGRATION NOTE: This function now uses the new RecommendationsConfig
+    but maintains backward compatibility for existing code.
+    """
+    config = get_config()
     
-    return config.model_dump()
+    # Convert to legacy format for backward compatibility
+    return {
+        "weights": {
+            "genre": config.weights.genre,
+            "author": config.weights.author,
+            "popularity": config.weights.popularity,
+        },
+        "limits": {
+            "default": config.limits.default,
+            "max": config.limits.max,
+        },
+        "features": {
+            "filter_out_of_stock": config.features.filter_out_of_stock,
+            "enable_cache": config.features.enable_cache,
+            "ttl_seconds": config.features.ttl_seconds,
+        }
+    }
 
 
 # Keep legacy function for rollback capability during migration
