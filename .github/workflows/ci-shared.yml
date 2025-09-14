@@ -65,7 +65,7 @@ jobs:
   build:
     name: "Build & Test"
     needs: analyze-commit
-    uses: yonatanp-jfrog/bookverse-demo-init/.github/workflows/shared-build.yml@main
+    uses: ./.github/workflows/shared-build.yml
     with:
       service-name: "recommendations"
       python-version: "3.11"
