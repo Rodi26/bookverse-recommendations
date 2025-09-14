@@ -210,6 +210,7 @@ jobs:
           echo "📦 Installing Python dependencies for ${{ inputs.service-name }}"
           pip install --upgrade pip
           pip install PyYAML  # For semver script
+          pip install pytest pytest-cov  # For testing
           
           # Configure JFrog PyPI resolution
           jf pip-config --repo-resolve="${{ vars.PROJECT_KEY }}-pypi-virtual"
@@ -293,9 +294,18 @@ jobs:
           echo "🧪 Running tests for ${{ inputs.service-name }}"
           
           if [ -f "pytest.ini" ] || [ -f "pyproject.toml" ]; then
-            # Run pytest with coverage
-            python -m pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml
-            echo "✅ Tests completed with coverage report"
+            # Run pytest with coverage - auto-detect coverage target
+            if [ -d "app" ]; then
+              echo "📁 Detected app/ directory, using --cov=app"
+              python -m pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml
+            elif [ -d "${{ inputs.service-name }}" ]; then
+              echo "📁 Detected ${{ inputs.service-name }}/ directory, using --cov=${{ inputs.service-name }}"
+              python -m pytest tests/ -v --cov=${{ inputs.service-name }} --cov-report=term-missing --cov-report=xml
+            else
+              echo "📁 No specific directory detected, running tests without coverage"
+              python -m pytest tests/ -v
+            fi
+            echo "✅ Tests completed"
           else
             echo "⚠️ No pytest configuration found, running basic tests"
             python -m pytest tests/ -v || echo "No tests found or test failures"
