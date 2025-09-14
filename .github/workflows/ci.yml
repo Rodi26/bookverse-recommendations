@@ -227,7 +227,6 @@ jobs:
           TOKEN=$(curl -sS -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$JF_URL/access/api/v1/oidc/token" | jq -r .access_token)
           if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then echo "❌ Failed to exchange OIDC token" >&2; exit 1; fi
           echo "JF_OIDC_TOKEN=$TOKEN" >> $GITHUB_ENV
-          echo "JF_ACCESS_TOKEN=$TOKEN" >> $GITHUB_ENV
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
           
           # Extract Docker username from token (same as inventory)
