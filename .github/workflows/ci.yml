@@ -1,13 +1,18 @@
-name: CI
+name: CI (Legacy - DISABLED)
 
-# DEMO-READY: Automatic triggers enabled for full CI/CD pipeline demonstration
-# PRODUCTION NOTE: Real systems would have additional branch protection and approval gates
-'on':
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+# MIGRATION COMPLETE: This workflow has been replaced by ci-shared.yml
+# Disabled to prevent duplicate workflow runs during migration
+# 
+# ORIGINAL: 1,446 lines of custom CI logic
+# NEW: Uses shared workflows from bookverse-devops for consistency
+#
+# To re-enable: uncomment the 'on:' section below
+# 'on':
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
+#   workflow_dispatch:
     inputs:
       reason:
         description: 'Reason for manual CI trigger'
