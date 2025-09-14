@@ -42,8 +42,8 @@ app = create_app(
             "allow_headers": ["*"],
         },
         "logging": {
-            "include_request_body": False,  # Don't log request bodies for performance
-            "include_response_body": False,
+            "log_request_body": False,  # Don't log request bodies for performance
+            "log_response_body": False,  # Don't log response bodies for performance
         }
     }
 )
