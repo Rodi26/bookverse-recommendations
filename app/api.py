@@ -2,7 +2,17 @@ import os
 from datetime import datetime
 from typing import List, Set
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+
+# Import bookverse-core response models for standardization
+from bookverse_core.api.responses import (
+    SuccessResponse, 
+    PaginatedResponse,
+    HealthResponse,
+    create_success_response,
+    create_paginated_response,
+    create_health_response
+)
 
 from .indexer import Indexer
 from .schemas import RecommendationResponse, RecommendationItem, PersonalizedRequest
@@ -13,8 +23,8 @@ router = APIRouter()
 indexer = Indexer()
 
 
-@router.get("/api/v1/recommendations/similar", response_model=RecommendationResponse)
-def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50)):
+@router.get("/api/v1/recommendations/similar", response_model=SuccessResponse[List[RecommendationItem]])
+def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Request = None):
     """Return similar books to the provided seed `book_id` using simple rule-based scoring."""
     idx = indexer.ensure_indices()
     if book_id not in idx.book_by_id:
@@ -37,18 +47,17 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50)):
         scored.append(build_recommendation_item(b, s, factors))
 
     ranked = sorted(scored, key=lambda r: r.score, reverse=True)[:limit]
-    return RecommendationResponse(
-        recommendations=ranked,
-        meta={
-            "limit": limit,
-            "total_candidates": len(candidate_ids),
-            "generated_at": datetime.utcnow().isoformat() + "Z",
-        },
+    
+    # Use standardized success response with metadata
+    return create_success_response(
+        data=ranked,
+        message=f"Found {len(ranked)} similar books for '{seed.title}'",
+        request_id=getattr(request.state, 'request_id', None) if request else None
     )
 
 
-@router.post("/api/v1/recommendations/personalized", response_model=RecommendationResponse)
-def get_personalized(payload: PersonalizedRequest):
+@router.post("/api/v1/recommendations/personalized", response_model=SuccessResponse[List[RecommendationItem]])
+def get_personalized(payload: PersonalizedRequest, request: Request = None):
     """Return personalized recommendations based on optional seeds/context or trending fallback."""
     idx = indexer.ensure_indices()
 
@@ -61,6 +70,8 @@ def get_personalized(payload: PersonalizedRequest):
         seeds.extend(payload.cart_book_ids)
 
     seed_books = [idx.book_by_id[s] for s in seeds if s in idx.book_by_id]
+    message_context = "personalized"
+    
     if not seed_books:
         # Try feature seeds
         feature_candidates: Set[str] = set()
@@ -73,12 +84,14 @@ def get_personalized(payload: PersonalizedRequest):
             ranked_ids = sorted(idx.book_by_id.keys(), key=lambda i: idx.popularity.get(i, 0.0), reverse=True)
             top_ids = ranked_ids[: payload.limit or 10]
             recs = [build_recommendation_item(idx.book_by_id[i], idx.popularity.get(i, 0.0), {"popularity": idx.popularity.get(i, 0.0)}) for i in top_ids if idx.book_by_id[i].availability.in_stock]
-            return RecommendationResponse(
-                recommendations=recs,
-                meta={"limit": payload.limit or 10, "total_candidates": len(top_ids), "generated_at": datetime.utcnow().isoformat() + "Z"},
+            return create_success_response(
+                data=recs,
+                message=f"Generated {len(recs)} trending recommendations (no personalization data available)",
+                request_id=getattr(request.state, 'request_id', None) if request else None
             )
         # Score with pseudo seeds from features
         seed_books = [idx.book_by_id[i] for i in list(feature_candidates)[:3] if i in idx.book_by_id]
+        message_context = "feature-based"
 
     # Collect candidates from seeds
     candidate_ids: Set[str] = set()
@@ -99,18 +112,16 @@ def get_personalized(payload: PersonalizedRequest):
 
     limit = payload.limit or 10
     ranked = sorted(scored, key=lambda r: r.score, reverse=True)[:limit]
-    return RecommendationResponse(
-        recommendations=ranked,
-        meta={
-            "limit": limit,
-            "total_candidates": len(candidate_ids),
-            "generated_at": datetime.utcnow().isoformat() + "Z",
-        },
+    
+    return create_success_response(
+        data=ranked,
+        message=f"Generated {len(ranked)} {message_context} recommendations from {len(candidate_ids)} candidates",
+        request_id=getattr(request.state, 'request_id', None) if request else None
     )
 
 
-@router.get("/api/v1/recommendations/trending", response_model=RecommendationResponse)
-def get_trending(limit: int = Query(10, ge=1, le=50)):
+@router.get("/api/v1/recommendations/trending", response_model=SuccessResponse[List[RecommendationItem]])
+def get_trending(limit: int = Query(10, ge=1, le=50), request: Request = None):
     """Return currently trending books based on recent stock_out popularity."""
     idx = indexer.ensure_indices()
     ranked_ids = sorted(idx.book_by_id.keys(), key=lambda i: idx.popularity.get(i, 0.0), reverse=True)
@@ -123,13 +134,15 @@ def get_trending(limit: int = Query(10, ge=1, le=50)):
         items.append(build_recommendation_item(b, s, {"popularity": s}))
         if len(items) >= limit:
             break
-    return RecommendationResponse(
-        recommendations=items,
-        meta={"limit": limit, "total_candidates": len(ranked_ids), "generated_at": datetime.utcnow().isoformat() + "Z"},
+    
+    return create_success_response(
+        data=items,
+        message=f"Generated {len(items)} trending recommendations from {len(ranked_ids)} total books",
+        request_id=getattr(request.state, 'request_id', None) if request else None
     )
 
 
-@router.get("/api/v1/recommendations/health")
+@router.get("/api/v1/recommendations/health", response_model=HealthResponse)
 def recommendations_health():
     """Basic health and cache freshness info for indices and popularity map."""
     idx = indexer.ensure_indices()
@@ -137,20 +150,34 @@ def recommendations_health():
     last_built = idx.last_built_at
     now = datetime.utcnow().timestamp()
     stale = ttl > 0 and (now - last_built) > ttl
-    return {
-        "status": "healthy",
+    
+    # Determine overall health status
+    status = "degraded" if stale else "healthy"
+    
+    # Detailed health checks
+    checks = {
         "indices": {
+            "status": "healthy",
             "books": len(idx.book_by_id),
             "genres": len(idx.genre_to_book_ids),
             "authors": len(idx.author_to_book_ids),
             "popularity": len(idx.popularity),
         },
         "cache": {
+            "status": "degraded" if stale else "healthy",
             "ttl_seconds": ttl,
             "last_built_at": datetime.utcfromtimestamp(last_built).isoformat() + "Z" if last_built else None,
             "stale": stale,
+            "age_seconds": int(now - last_built) if last_built else None,
         },
-        "timestamp": datetime.utcnow().isoformat() + "Z",
     }
+    
+    return create_health_response(
+        status=status,
+        service="recommendations",
+        version=os.getenv("SERVICE_VERSION", "0.1.0-dev"),
+        checks=checks,
+        uptime=now - last_built if last_built else None
+    )
 
 
