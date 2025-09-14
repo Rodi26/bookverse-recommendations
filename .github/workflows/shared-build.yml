@@ -353,14 +353,25 @@ jobs:
           echo "🐳 Building Docker image for ${{ inputs.service-name }}"
           
           if [ -f "Dockerfile" ]; then
-            # CRITICAL FIX: Use proper IMAGE_TAG format with version
-            FULL_IMAGE_TAG="${{ vars.PROJECT_KEY }}-${{ inputs.service-name }}:${{ steps.semver.outputs.version }}"
+            # FIXED: Use inventory service pattern for Docker build and push
+            SERVICE_NAME="${{ inputs.service-name }}"
+            IMAGE_TAG="${{ steps.semver.outputs.version }}"
+            REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
+            REGISTRY_URL="${{ vars.DOCKER_REGISTRY }}"
+            IMAGE_NAME="$REGISTRY_URL/$REPO_KEY/$SERVICE_NAME:$IMAGE_TAG"
             
-            docker build -t "$FULL_IMAGE_TAG" .
-            echo "✅ Docker image built: $FULL_IMAGE_TAG"
+            echo "Using inventory service Docker pattern:"
+            echo "  Registry: $REGISTRY_URL"
+            echo "  Repo Key: $REPO_KEY"
+            echo "  Full Image Name: $IMAGE_NAME"
+            
+            # Use jf docker build (like inventory service) instead of plain docker build
+            jf docker build --pull -t "$IMAGE_NAME" --build-name "${{ steps.build-vars.outputs.build-name }}" --build-number "${{ steps.build-vars.outputs.build-number }}" .
+            echo "✅ Docker image built with JFrog CLI: $IMAGE_NAME"
             
             # Save image info for publishing
-            echo "docker-image=$FULL_IMAGE_TAG" >> $GITHUB_OUTPUT
+            echo "docker-image=$IMAGE_NAME" >> $GITHUB_OUTPUT
+            echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
           else
             echo "⚠️ No Dockerfile found, skipping Docker build"
           fi
@@ -383,12 +394,27 @@ jobs:
             jf rt upload "dist/*" "$REPO_BASE-python-nonprod-local/" --build-name="${{ steps.build-vars.outputs.build-name }}" --build-number="${{ steps.build-vars.outputs.build-number }}"
           fi
           
-          # Publish Docker images
+          # Publish Docker images using inventory service pattern
           if [ -f "Dockerfile" ] && [ ! "${{ inputs.skip-docker }}" = "true" ]; then
-            echo "🐳 Publishing Docker image..."
-            FULL_IMAGE_TAG="${{ vars.PROJECT_KEY }}-${{ inputs.service-name }}:${{ steps.semver.outputs.version }}"
-            # CRITICAL WORKAROUND: Use deprecated command for Artifactory < 7.33.3
-            jf rt docker-push "$FULL_IMAGE_TAG" "$REPO_BASE-docker-nonprod-local" --build-name="${{ steps.build-vars.outputs.build-name }}" --build-number="${{ steps.build-vars.outputs.build-number }}"
+            echo "🐳 Publishing Docker image using inventory service pattern..."
+            
+            # Image was already built with full registry path, just push it
+            docker push "$IMAGE_NAME"
+            echo "✅ Docker image pushed: $IMAGE_NAME"
+            
+            # Add Docker image to build-info (like inventory service)
+            SERVICE_NAME="${{ inputs.service-name }}"
+            REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
+            echo "🔗 Adding docker image to build-info: image=$IMAGE_NAME repo=$REPO_KEY"
+            
+            # Create images.txt file for build-info
+            echo "$IMAGE_NAME" > images.txt
+            jf rt build-docker-create "$REPO_KEY" \
+              --image-file images.txt \
+              --build-name "${{ steps.build-vars.outputs.build-name }}" \
+              --build-number "${{ steps.build-vars.outputs.build-number }}"
+            
+            echo "✅ Docker image added to build-info"
           fi
           
           # Publish generic artifacts (configs, schemas, etc.)
