@@ -4,7 +4,7 @@ from typing import List, Set
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-# Import bookverse-core response models for standardization
+# Import bookverse-core response models and validation utilities
 from bookverse_core.api.responses import (
     SuccessResponse, 
     PaginatedResponse,
@@ -12,6 +12,10 @@ from bookverse_core.api.responses import (
     create_success_response,
     create_paginated_response,
     create_health_response
+)
+from bookverse_core.utils.validation import (
+    sanitize_string,
+    create_validation_error_message
 )
 
 from .indexer import Indexer
@@ -34,10 +38,31 @@ indexer = Indexer()
 @router.get("/api/v1/recommendations/similar", response_model=SuccessResponse[List[RecommendationItem]])
 def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Request = None):
     """Return similar books to the provided seed `book_id` using simple rule-based scoring."""
+    # Validate and sanitize book_id parameter
+    try:
+        sanitized_book_id = sanitize_string(book_id, max_length=100)
+        if not sanitized_book_id:
+            raise HTTPException(
+                status_code=400, 
+                detail=create_validation_error_message(
+                    "book_id", book_id, "cannot be empty after sanitization"
+                )
+            )
+        book_id = sanitized_book_id
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=create_validation_error_message("book_id", book_id, str(e))
+        )
+    
     request_id = getattr(request.state, 'request_id', None) if request else None
     idx = get_indexer_with_request_id(request_id).ensure_indices()
+    
     if book_id not in idx.book_by_id:
-        raise HTTPException(status_code=404, detail="Seed book not found")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Seed book '{book_id}' not found in catalog. Available books: {len(idx.book_by_id)}"
+        )
 
     seed = idx.book_by_id[book_id]
     candidate_ids: Set[str] = set()
