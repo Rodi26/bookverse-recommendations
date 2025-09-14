@@ -17,16 +17,25 @@ from bookverse_core.api.responses import (
 from .indexer import Indexer
 from .schemas import RecommendationResponse, RecommendationItem, PersonalizedRequest
 from .algorithms import score_simple, build_recommendation_item
+from .clients import InventoryClient
 
 
 router = APIRouter()
+
+def get_indexer_with_request_id(request_id: Optional[str] = None) -> Indexer:
+    """Create indexer with request ID for HTTP client tracing."""
+    client = InventoryClient(request_id=request_id)
+    return Indexer(client=client)
+
+# Default indexer for backwards compatibility
 indexer = Indexer()
 
 
 @router.get("/api/v1/recommendations/similar", response_model=SuccessResponse[List[RecommendationItem]])
 def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Request = None):
     """Return similar books to the provided seed `book_id` using simple rule-based scoring."""
-    idx = indexer.ensure_indices()
+    request_id = getattr(request.state, 'request_id', None) if request else None
+    idx = get_indexer_with_request_id(request_id).ensure_indices()
     if book_id not in idx.book_by_id:
         raise HTTPException(status_code=404, detail="Seed book not found")
 
@@ -59,7 +68,8 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Requ
 @router.post("/api/v1/recommendations/personalized", response_model=SuccessResponse[List[RecommendationItem]])
 def get_personalized(payload: PersonalizedRequest, request: Request = None):
     """Return personalized recommendations based on optional seeds/context or trending fallback."""
-    idx = indexer.ensure_indices()
+    request_id = getattr(request.state, 'request_id', None) if request else None
+    idx = get_indexer_with_request_id(request_id).ensure_indices()
 
     seeds: List[str] = []
     if payload.seed_book_ids:
@@ -123,7 +133,8 @@ def get_personalized(payload: PersonalizedRequest, request: Request = None):
 @router.get("/api/v1/recommendations/trending", response_model=SuccessResponse[List[RecommendationItem]])
 def get_trending(limit: int = Query(10, ge=1, le=50), request: Request = None):
     """Return currently trending books based on recent stock_out popularity."""
-    idx = indexer.ensure_indices()
+    request_id = getattr(request.state, 'request_id', None) if request else None
+    idx = get_indexer_with_request_id(request_id).ensure_indices()
     ranked_ids = sorted(idx.book_by_id.keys(), key=lambda i: idx.popularity.get(i, 0.0), reverse=True)
     items: List[RecommendationItem] = []
     for bid in ranked_ids:
