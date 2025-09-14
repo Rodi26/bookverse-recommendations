@@ -233,6 +233,13 @@ jobs:
           # Configure JFrog PyPI resolution
           jf pip-config --repo-resolve="${{ vars.PROJECT_KEY }}-pypi-virtual"
           
+          # Install local bookverse-core library if it exists (for services using it)
+          if [ -d "libs/bookverse-core" ]; then
+            echo "Installing local bookverse-core library..."
+            pip install -e ./libs/bookverse-core
+            echo "✅ Local bookverse-core installed"
+          fi
+          
           # Install dependencies from JFrog (with fallback to PyPI)
           if [ -f "requirements.txt" ]; then
             echo "Installing from requirements.txt..."
