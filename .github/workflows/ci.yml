@@ -267,30 +267,24 @@ jobs:
       - name: "[Test] Install deps (Optimized with bookverse-core)"
         run: |
           
-          echo "📦 Installing dependencies with build-info tracking..."
+          echo "📦 Installing dependencies from pre-populated JFrog repository..."
           
-          # Install minimal dependencies for testing (avoiding dependency resolution issues)
-          jf pip install --no-deps --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
+          # Use exact versions that are pre-populated in JFrog PyPI repository by demo setup
+          jf pip install --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
             pytest==8.3.2 \
             pytest-cov==4.0.0 \
             coverage \
             pluggy \
             iniconfig \
             packaging \
-            fastapi \
-            uvicorn \
-            pydantic \
-            pydantic-core \
-            starlette \
-            requests \
-            typing-extensions \
-            annotated-types
+            fastapi==0.111.0 \
+            uvicorn==0.30.0 \
+            requests==2.31.0 \
+            starlette==0.37.2 \
+            pydantic==2.11.9 \
+            typing-extensions==4.15.0
           
-          # Add bookverse-core to Python path instead of installing in editable mode
-          if [ -d "libs/bookverse-core" ]; then
-            export PYTHONPATH="$PWD/libs/bookverse-core:$PYTHONPATH"
-            echo "✅ Added bookverse-core to Python path"
-          fi
+          echo "✅ Installed dependencies from pre-populated JFrog repository"
           
           echo "✅ Dependencies installed using bookverse-core patterns"
 
