@@ -115,47 +115,18 @@ jobs:
           jf rt ping
           echo "✅ JFrog authentication successful"
 
-      - name: "[Auth] Exchange OIDC and persist JF access token"
+      - name: "[Auth] OIDC Token Exchange (bookverse-devops shared script)"
         id: exchange-oidc
-        env:
-          JF_URL: ${{ vars.JFROG_URL }}
-          PROJECT: ${{ vars.PROJECT_KEY }}
-          PROVIDER_NAME: bookverse-recommendations-github
         run: |
-          set -euo pipefail
-          # Ensure jq
-          if ! command -v jq >/dev/null 2>&1; then sudo apt-get update -y && sudo apt-get install -y jq; fi
-          # 1) Get GitHub OIDC ID token (audience -> JFrog URL)
-          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
-            echo "❌ Missing GitHub OIDC request env vars" >&2; exit 1; fi
-          GH_ID_TOKEN=$(curl -sS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${JF_URL}" | jq -r .value)
-          if [[ -z "$GH_ID_TOKEN" || "$GH_ID_TOKEN" == "null" ]]; then echo "❌ Failed to fetch GitHub ID token" >&2; exit 1; fi
-          # 2) Exchange at JFrog Access for access token
-          PAYLOAD=$(jq -n --arg jwt "$GH_ID_TOKEN" \
-            '{grant_type: "urn:ietf:params:oauth:grant-type:token-exchange", subject_token: $jwt, subject_token_type: "urn:ietf:params:oauth:token-type:id_token", provider_name: env.PROVIDER_NAME}')
-          TOKEN=$(curl -sS -X POST "${JF_URL}/access/api/v1/oidc/token" \
-            -H "Content-Type: application/json" -d "$PAYLOAD" | jq -r .access_token)
-          if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then echo "❌ Failed to exchange OIDC token" >&2; exit 1; fi
-          # Persist access token for later steps (TTL ~60m)
-          echo "JF_OIDC_TOKEN=$TOKEN" >> $GITHUB_ENV
-          echo "token=$TOKEN" >> $GITHUB_OUTPUT
-          # 3) Docker login to the registry using access token
-          # Derive username from token payload (sub/username), fallback to oauth2_access_token
-          b64pad() { local l=${#1}; local m=$((l % 4)); if [ $m -eq 2 ]; then echo "$1=="; elif [ $m -eq 3 ]; then echo "$1="; else echo "$1"; fi; }
-          PAY=$(echo "$TOKEN" | cut -d. -f2 || true)
-          PAY_PAD=$(b64pad "$PAY")
-          CLAIMS=$(echo "$PAY_PAD" | tr '_-' '/+' | base64 -d 2>/dev/null || true)
-          DOCKER_USER=$(echo "$CLAIMS" | jq -r '.username // .sub // .subject // empty' 2>/dev/null || true)
-          # If sub is in the form jfac@.../users/<username>, extract the trailing <username>
-          if [[ "$DOCKER_USER" == *"/users/"* ]]; then
-            DOCKER_USER=${DOCKER_USER##*/users/}
-          fi
-          if [[ -z "$DOCKER_USER" || "$DOCKER_USER" == "null" ]]; then DOCKER_USER="oauth2_access_token"; fi
-          echo "Using docker username: $DOCKER_USER"
-          REGISTRY_URL="${{ vars.DOCKER_REGISTRY }}"
-          echo "$TOKEN" | docker login "$REGISTRY_URL" -u "$DOCKER_USER" --password-stdin
-          echo "✅ JFrog access token obtained and Docker login completed"
+          echo "🔐 Using bookverse-devops shared OIDC exchange script"
+          # Use shared script to eliminate ~40 lines of duplicate OIDC logic
+          ../bookverse-demo-init/bookverse-devops/scripts/exchange-oidc-token.sh \
+            --service-name "recommendations" \
+            --provider-name "bookverse-recommendations-github" \
+            --jfrog-url "${{ vars.JFROG_URL }}" \
+            --docker-registry "${{ vars.DOCKER_REGISTRY }}" \
+            --verbose
+          echo "✅ OIDC token exchange completed using shared bookverse-devops script"
 
       - name: "[Setup] Install Python dependencies"
         run: |
@@ -289,12 +260,13 @@ except:
           echo "COVERAGE_PERCENT=$COVERAGE_PERCENT" >> $GITHUB_ENV
           echo "coverage_percent=$COVERAGE_PERCENT" >> $GITHUB_OUTPUT
 
-      - name: "[Evidence] Collect Test Artifacts (Optimized)"
+      - name: "[Evidence] Collect Test Artifacts & Compliance Evidence (Enhanced)"
         run: |
-          echo "📊 Collecting test evidence using bookverse-devops patterns"
+          echo "📊 Collecting comprehensive evidence using bookverse-devops templates"
           
           # Create evidence directory structure
           mkdir -p evidence/test-results
+          mkdir -p evidence/compliance
           
           # Collect test artifacts with standardized naming
           if [ -f "coverage.xml" ]; then
@@ -307,12 +279,33 @@ except:
             echo "✅ Collected HTML coverage report"
           fi
           
-          # Create test evidence manifest (bookverse-devops pattern)
+          # Generate FOSSA License Compliance Evidence (bookverse-devops template)
+          echo "📋 Generating FOSSA license compliance evidence..."
+          NOW_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          sed -e "s/\${SERVICE_NAME}/$SERVICE_NAME/g" \
+              -e "s/\${BUILD_NAME}/$BUILD_NAME/g" \
+              -e "s/\${NOW_TS}/$NOW_TS/g" \
+              ../bookverse-demo-init/bookverse-devops/evidence/templates/build/fossa-license-scan.json.template \
+              > evidence/compliance/fossa-license-scan.json
+          echo "✅ FOSSA license compliance evidence generated"
+          
+          # Generate SLSA Provenance Evidence (bookverse-devops template)
+          echo "📋 Generating SLSA provenance evidence..."
+          APPLICATION_KEY="bookverse-$SERVICE_NAME"
+          APP_VERSION="${{ env.APP_VERSION }}"
+          sed -e "s/\${APPLICATION_KEY}/$APPLICATION_KEY/g" \
+              -e "s/\${APP_VERSION}/$APP_VERSION/g" \
+              -e "s/\${NOW_TS}/$NOW_TS/g" \
+              ../bookverse-demo-init/bookverse-devops/evidence/templates/application/unassigned/slsa-provenance.json.template \
+              > evidence/compliance/slsa-provenance.json
+          echo "✅ SLSA provenance evidence generated"
+          
+          # Create comprehensive test evidence manifest (bookverse-devops pattern)
           cat > evidence/test-results/manifest.json << EOF
 {
   "service": "recommendations",
   "test_run": {
-    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "timestamp": "$NOW_TS",
     "coverage_percent": ${COVERAGE_PERCENT},
     "build_name": "$BUILD_NAME",
     "build_number": "$BUILD_NUMBER",
@@ -325,8 +318,26 @@ except:
 }
 EOF
           
-          echo "📋 Test evidence manifest created"
-          echo "✅ Test artifacts collected using bookverse-devops patterns"
+          # Create compliance evidence manifest
+          cat > evidence/compliance/manifest.json << EOF
+{
+  "service": "recommendations",
+  "compliance_scan": {
+    "timestamp": "$NOW_TS",
+    "build_name": "$BUILD_NAME",
+    "build_number": "$BUILD_NUMBER",
+    "commit_sha": "${{ github.sha }}",
+    "frameworks": ["FOSSA", "SLSA"]
+  },
+  "artifacts": [
+    "fossa-license-scan.json",
+    "slsa-provenance.json"
+  ]
+}
+EOF
+          
+          echo "📋 Comprehensive evidence manifests created"
+          echo "✅ Enhanced evidence collection completed using bookverse-devops templates"
 
       - name: "[Build] API image"
         run: |
@@ -447,32 +458,17 @@ EOF
           JFROG_CLI_BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
           JFROG_CLI_BUILD_PROJECT: ${{ vars.PROJECT_KEY }}
 
-      - name: "[Auth] Exchange OIDC and persist JF access token"
+      - name: "[Auth] OIDC Token Exchange (bookverse-devops shared script)"
         id: exchange-oidc
-        env:
-          JF_URL: ${{ vars.JFROG_URL }}
-          PROJECT: ${{ vars.PROJECT_KEY }}
-          PROVIDER_NAME: bookverse-recommendations-github
         run: |
-          set -euo pipefail
-          # Ensure jq
-          if ! command -v jq >/dev/null 2>&1; then sudo apt-get update -y && sudo apt-get install -y jq; fi
-          # 1) Get GitHub OIDC ID token (audience -> JFrog URL)
-          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
-            echo "❌ Missing GitHub OIDC request env vars" >&2; exit 1; fi
-          GH_ID_TOKEN=$(curl -sS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${JF_URL}" | jq -r .value)
-          if [[ -z "$GH_ID_TOKEN" || "$GH_ID_TOKEN" == "null" ]]; then echo "❌ Failed to fetch GitHub ID token" >&2; exit 1; fi
-          # 2) Exchange at JFrog Access for access token
-          PAYLOAD=$(jq -n --arg jwt "$GH_ID_TOKEN" \
-            '{grant_type: "urn:ietf:params:oauth:grant-type:token-exchange", subject_token: $jwt, subject_token_type: "urn:ietf:params:oauth:token-type:id_token", provider_name: env.PROVIDER_NAME}')
-          JF_OIDC_TOKEN=$(curl -sS -X POST "${JF_URL}/access/api/v1/oidc/token" \
-            -H "Content-Type: application/json" -d "$PAYLOAD" | jq -r .access_token)
-          if [[ -z "$JF_OIDC_TOKEN" || "$JF_OIDC_TOKEN" == "null" ]]; then echo "❌ Failed to exchange OIDC token" >&2; exit 1; fi
-          # 3) Persist for subsequent steps
-          echo "JF_OIDC_TOKEN=$JF_OIDC_TOKEN" >> $GITHUB_ENV
-          echo "token=$JF_OIDC_TOKEN" >> $GITHUB_OUTPUT
-          echo "✅ JFrog access token obtained and persisted"
+          echo "🔐 Using bookverse-devops shared OIDC exchange script (no Docker login needed)"
+          # Use shared script to eliminate ~25 lines of duplicate OIDC logic
+          ../bookverse-demo-init/bookverse-devops/scripts/exchange-oidc-token.sh \
+            --service-name "recommendations" \
+            --provider-name "bookverse-recommendations-github" \
+            --jfrog-url "${{ vars.JFROG_URL }}" \
+            --verbose
+          echo "✅ OIDC token exchange completed using shared bookverse-devops script"
 
       - name: "[Setup] Install Python dependencies"
         run: |
