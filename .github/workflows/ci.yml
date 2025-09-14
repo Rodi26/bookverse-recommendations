@@ -267,19 +267,25 @@ jobs:
       - name: "[Test] Install deps (Optimized with bookverse-core)"
         run: |
           
-          echo "📦 Installing bookverse-core and dependencies..."
+          echo "📦 Installing dependencies with build-info tracking..."
           
-          # Install bookverse-core first (includes standardized dependencies)
-          # Note: setuptools and wheel are prepopulated in earlier step
+          # Install minimal dependencies for testing (avoiding dependency resolution issues)
+          jf pip install --no-deps --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
+            pytest==8.3.2 \
+            pytest-cov==4.0.0 \
+            coverage \
+            pluggy \
+            iniconfig \
+            packaging \
+            fastapi \
+            uvicorn \
+            pydantic \
+            requests
+          
+          # Add bookverse-core to Python path instead of installing in editable mode
           if [ -d "libs/bookverse-core" ]; then
-            jf pip install -e ./libs/bookverse-core --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
-            echo "✅ Installed local bookverse-core"
-          fi
-          
-          # Install service requirements with build-info tracking
-          if [ -f "requirements.txt" ]; then
-            jf pip install -r requirements.txt --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
-            echo "✅ Installed service requirements with build-info tracking"
+            export PYTHONPATH="$PWD/libs/bookverse-core:$PYTHONPATH"
+            echo "✅ Added bookverse-core to Python path"
           fi
           
           echo "✅ Dependencies installed using bookverse-core patterns"
