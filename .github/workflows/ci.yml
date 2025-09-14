@@ -251,7 +251,7 @@ try:
     print(f'{float(line_rate) * 100:.1f}')
 except:
     print('85.0')
-")
+            ")
           else
             COVERAGE_PERCENT="85.0"
           fi
