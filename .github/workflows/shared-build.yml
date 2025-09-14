@@ -380,7 +380,8 @@ jobs:
           if [ -f "Dockerfile" ] && [ ! "${{ inputs.skip-docker }}" = "true" ]; then
             echo "🐳 Publishing Docker image..."
             FULL_IMAGE_TAG="${{ vars.PROJECT_KEY }}-${{ inputs.service-name }}:${{ steps.semver.outputs.version }}"
-            jf docker push "$FULL_IMAGE_TAG" "$REPO_BASE-docker-nonprod-local" --build-name="${{ steps.build-vars.outputs.build-name }}" --build-number="${{ steps.build-vars.outputs.build-number }}"
+            # CRITICAL WORKAROUND: Use deprecated command for Artifactory < 7.33.3
+            jf rt docker-push "$FULL_IMAGE_TAG" "$REPO_BASE-docker-nonprod-local" --build-name="${{ steps.build-vars.outputs.build-name }}" --build-number="${{ steps.build-vars.outputs.build-number }}"
           fi
           
           # Publish generic artifacts (configs, schemas, etc.)
