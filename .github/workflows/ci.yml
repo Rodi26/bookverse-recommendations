@@ -40,7 +40,7 @@ jobs:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+          
       - name: "[Demo] Commit Analysis (Optimized for Visibility)"
         id: demo-filter
         env:
@@ -127,7 +127,7 @@ jobs:
           JFROG_CLI_BUILD_NAME: ${{ env.BUILD_NAME }}
           JFROG_CLI_BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
           JFROG_CLI_BUILD_PROJECT: ${{ vars.PROJECT_KEY }}
-          
+
       - name: "[Setup] Verify JFrog Authentication"
         run: |
           echo "🔐 Verifying JFrog CLI authentication and connectivity..."
@@ -432,7 +432,7 @@ jobs:
           REGISTRY_URL="${{ vars.DOCKER_REGISTRY }}"
           WORKER_IMAGE="$REGISTRY_URL/$REPO_KEY/$WORKER_NAME:$WORKER_TAG"
           echo "WORKER_IMAGE=$WORKER_IMAGE" >> $GITHUB_ENV
-          
+
           # Build and push (plain docker) using subdomain host; then create build-info
           jf docker build -f Dockerfile.worker -t "$WORKER_IMAGE" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" .
           docker push "$WORKER_IMAGE"
@@ -562,20 +562,6 @@ jobs:
           JFROG_CLI_BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
           JFROG_CLI_BUILD_PROJECT: ${{ vars.PROJECT_KEY }}
 
-      - name: "[Auth] OIDC Token Exchange (bookverse-devops shared script)"
-        id: exchange-oidc
-        run: |
-          echo "🔐 Using bookverse-devops shared OIDC exchange script (no Docker login needed)"
-          # Use shared script to eliminate ~25 lines of duplicate OIDC logic
-          bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh \
-            --service-name "recommendations" \
-            --provider-name "bookverse-recommendations-github" \
-            --jfrog-url "${{ vars.JFROG_URL }}" \
-            --verbose
-          
-          # Output the token for use in subsequent steps (OIDC best practice)
-          echo "token=$JF_OIDC_TOKEN" >> $GITHUB_OUTPUT
-          echo "✅ OIDC token exchange completed and available as step output"
 
       - name: "[Setup] Install Python dependencies"
         run: |
@@ -636,12 +622,13 @@ jobs:
         run: |
           echo "🚀 Creating application version ${{ env.APP_VERSION }}"
           
-          # Verify JF_OIDC_TOKEN is available from the OIDC exchange step
-          if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
-            echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
-            exit 1
-          fi
-          echo "✅ Using JF_OIDC_TOKEN directly for AppTrust API authentication"
+           # Get the OIDC token from the build-test-publish job outputs
+           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
+           if [[ -z "$OIDC_TOKEN" ]]; then
+             echo "❌ Failed to get OIDC token from build-test-publish job" >&2
+             exit 1
+           fi
+           echo "✅ Using OIDC token from build-test-publish job for AppTrust API authentication"
           
           # Create application version using correct AppTrust API payload structure
           # Based on working implementation from recommendations service
@@ -658,19 +645,22 @@ jobs:
           ACTUAL_BUILD_NAME="${{ needs.build-test-publish.outputs.build_name }}"
           
           # Create payload using string concatenation (same as recommendations service)
-          APP_VERSION_PAYLOAD='{"version":"'$APP_VERSION'","tag":"'$APP_TAG'","sources":{"builds":[{"name":"'$ACTUAL_BUILD_NAME'","number":"'$BUILD_NUMBER'","repository_key":"'${{ vars.PROJECT_KEY }}'-build-info","include_dependencies":false}]}}'
+          # CRITICAL: Use the ACTUAL build number from the first job (127-1), not the corrupted one
+          ACTUAL_BUILD_NUMBER="${{ needs.build-test-publish.outputs.build_number }}"
+          echo "🔧 Using actual build number from first job: $ACTUAL_BUILD_NUMBER"
+          APP_VERSION_PAYLOAD='{"version":"'$APP_VERSION'","tag":"'$APP_TAG'","sources":{"builds":[{"name":"'$ACTUAL_BUILD_NAME'","number":"'$ACTUAL_BUILD_NUMBER'","repository_key":"'${{ vars.PROJECT_KEY }}'-build-info","include_dependencies":false}]}}'
           
           echo "📋 Creating application version with payload:"
           echo "$APP_VERSION_PAYLOAD" | jq . || echo "$APP_VERSION_PAYLOAD"
           
           # Call AppTrust API using exact same approach as recommendations service
           RESP_BODY=$(mktemp)
-          HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
-            "$BASE/applications/$APP_KEY/versions?async=false" \
-            -H "Authorization: Bearer $JF_OIDC_TOKEN" \
-            -H "Content-Type: application/json" \
-            -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
-            -d "$APP_VERSION_PAYLOAD" \
+           HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
+             "$BASE/applications/$APP_KEY/versions?async=false" \
+             -H "Authorization: Bearer $OIDC_TOKEN" \
+              -H "Content-Type: application/json" \
+              -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
+              -d "$APP_VERSION_PAYLOAD" \
             --fail-with-body)
           
           echo "🔢 HTTP Status: $HTTP_STATUS"
@@ -687,7 +677,7 @@ jobs:
               echo "📝 Version $APP_VERSION already exists, continuing with promotion..."
             else
               echo "❌ Failed to create application version" >&2
-              rm -f "$RESP_BODY"
+          rm -f "$RESP_BODY"
               exit 1
             fi
           fi
@@ -696,9 +686,9 @@ jobs:
           # Validate version was created successfully (same as recommendations service)
           echo "🔍 Validating application version creation..."
           CONTENT_FILE=$(mktemp)
-          CONTENT_STATUS=$(curl -sS -L -o "$CONTENT_FILE" -w "%{http_code}" \
-            "$BASE/applications/$APP_KEY/versions/$APP_VERSION/content" \
-            -H "Authorization: Bearer $JF_OIDC_TOKEN" \
+           CONTENT_STATUS=$(curl -sS -L -o "$CONTENT_FILE" -w "%{http_code}" \
+             "$BASE/applications/$APP_KEY/versions/$APP_VERSION/content" \
+             -H "Authorization: Bearer $OIDC_TOKEN" \
             -H "Accept: application/json")
           
           if [[ "$CONTENT_STATUS" != "200" ]]; then
@@ -737,14 +727,16 @@ jobs:
         run: |
           echo "🚀 Promoting to DEV stage and generating evidence"
           
-          # Verify JF_OIDC_TOKEN is available for promotion
-          if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
-            echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
-            exit 1
-          fi
-          echo "✅ Using JF_OIDC_TOKEN directly for DEV promotion"
+           # Use the OIDC token from build-test-publish job for promotion
+           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
+           if [[ -z "$OIDC_TOKEN" ]]; then
+             echo "❌ Missing OIDC token from build-test-publish job" >&2
+             exit 1
+           fi
+           echo "✅ Using OIDC token from build-test-publish job for DEV promotion"
           
           # Source evidence library (includes promotion setup)
+          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
@@ -765,14 +757,12 @@ jobs:
         run: |
           echo "🔍 Promoting to QA stage and generating evidence"
           
-          # Verify JF_OIDC_TOKEN is available for promotion
-          if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
-            echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
-            exit 1
-          fi
-          echo "✅ Using JF_OIDC_TOKEN directly for QA promotion"
+           # Use the OIDC token from build-test-publish job for promotion
+           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
+           echo "✅ Using OIDC token from build-test-publish job for QA promotion"
           
           # Source evidence library (includes promotion setup)
+          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
@@ -793,24 +783,22 @@ jobs:
         run: |
           echo "🏗️ Promoting to STAGING stage and generating evidence"
           
-          # Verify JF_OIDC_TOKEN is available for promotion
-          if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
-            echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
-            exit 1
-          fi
-          echo "✅ Using JF_OIDC_TOKEN directly for STAGING promotion"
+           # Use the OIDC token from build-test-publish job for promotion
+           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
+           echo "✅ Using OIDC token from build-test-publish job for STAGING promotion"
           
           # Source evidence library (includes promotion setup)
+          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
           # Promote to STAGING
-          if advance_one_step; then
+            if advance_one_step; then
             echo "✅ Successfully promoted to STAGING"
-          else
+            else
             echo "❌ Failed to promote to STAGING"
-            exit 1
-          fi
+              exit 1
+            fi
           
           # Generate and attach STAGING stage evidence
           # Evidence: IaC Scan (infrastructure security) + Pentest (penetration testing) + Change Approval (management approval)
@@ -821,14 +809,12 @@ jobs:
         run: |
           echo "🚀 Promoting to PROD stage and generating evidence"
           
-          # Verify JF_OIDC_TOKEN is available for promotion
-          if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
-            echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
-            exit 1
-          fi
-          echo "✅ Using JF_OIDC_TOKEN directly for PROD promotion"
+           # Use the OIDC token from build-test-publish job for promotion
+           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
+           echo "✅ Using OIDC token from build-test-publish job for PROD promotion"
           
           # Source evidence library (includes promotion setup)
+          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
@@ -839,7 +825,7 @@ jobs:
             echo "❌ Failed to promote to PROD"
             exit 1
           fi
-          
+
           # Generate and attach PROD stage evidence
           # Evidence: ArgoCD Deployment Verification (production deployment health and status)
           attach_application_prod_evidence
