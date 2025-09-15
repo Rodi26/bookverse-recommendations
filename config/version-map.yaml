@@ -11,7 +11,7 @@ applications:
         seed: 1.8.22
       - type: generic
         name: recommendation-config
-        seed: 1.13.45
+        seed: 1.13.43
       - type: generic
         name: resources
-        seed: 5.9.45
+        seed: 5.9.42
