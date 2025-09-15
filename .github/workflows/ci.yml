@@ -569,9 +569,7 @@ jobs:
           
           # Output the token for use in subsequent steps (OIDC best practice)
           echo "token=$JF_OIDC_TOKEN" >> $GITHUB_OUTPUT
-          # Set APPTRUST_ACCESS_TOKEN for promotion library (OIDC authentication)
-          echo "APPTRUST_ACCESS_TOKEN=$JF_OIDC_TOKEN" >> $GITHUB_ENV
-          echo "✅ OIDC token exchange completed and set for promotion authentication"
+          echo "✅ OIDC token exchange completed and available as step output"
 
       - name: "[Setup] Install Python dependencies"
         run: |
@@ -632,6 +630,15 @@ jobs:
         run: |
           echo "🚀 Creating application version ${{ env.APP_VERSION }}"
           
+          # Set APPTRUST_ACCESS_TOKEN using OIDC token from exchange step (following inventory service pattern)
+          OIDC_TOKEN="${{ steps.exchange-oidc.outputs.token }}"
+          if [[ -z "$OIDC_TOKEN" ]]; then
+            echo "❌ Failed to get OIDC token from exchange step" >&2
+            exit 1
+          fi
+          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
+          echo "✅ APPTRUST_ACCESS_TOKEN set for AppTrust API authentication"
+          
           # Create application version using correct AppTrust API payload structure
           # Based on working implementation from recommendations service
           BASE="${{ vars.JFROG_URL }}/apptrust/api/v1"
@@ -656,7 +663,7 @@ jobs:
           RESP_BODY=$(mktemp)
           HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
             "$BASE/applications/$APP_KEY/versions?async=false" \
-            -H "Authorization: Bearer ${{ steps.exchange-oidc.outputs.token }}" \
+            -H "Authorization: Bearer $APPTRUST_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
             -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
             -d "$APP_VERSION_PAYLOAD" \
@@ -687,7 +694,7 @@ jobs:
           CONTENT_FILE=$(mktemp)
           CONTENT_STATUS=$(curl -sS -L -o "$CONTENT_FILE" -w "%{http_code}" \
             "$BASE/applications/$APP_KEY/versions/$APP_VERSION/content" \
-            -H "Authorization: Bearer ${{ steps.exchange-oidc.outputs.token }}" \
+            -H "Authorization: Bearer $APPTRUST_ACCESS_TOKEN" \
             -H "Accept: application/json")
           
           if [[ "$CONTENT_STATUS" != "200" ]]; then
