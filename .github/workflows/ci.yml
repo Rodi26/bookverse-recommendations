@@ -39,7 +39,6 @@ jobs:
         with:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
-          token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: "[Demo] Commit Analysis (Optimized for Visibility)"
         id: demo-filter
@@ -89,7 +88,6 @@ jobs:
         with:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Info] Trigger Information"
         run: |
@@ -551,7 +549,6 @@ jobs:
         with:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[Setup] JFrog CLI"
         uses: jfrog/setup-jfrog-cli@v4
@@ -562,6 +559,21 @@ jobs:
           JFROG_CLI_BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
           JFROG_CLI_BUILD_PROJECT: ${{ vars.PROJECT_KEY }}
 
+      - name: "[Auth] OIDC Token Exchange (bookverse-devops shared script)"
+        run: |
+          set -euo pipefail
+          echo "🔐 Exchanging OIDC token using shared script from bookverse-devops"
+          
+          # Use shared OIDC exchange script
+          EXCHANGE_SCRIPT="bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh"
+          if [[ -f "$EXCHANGE_SCRIPT" ]]; then
+            chmod +x "$EXCHANGE_SCRIPT"
+            source "$EXCHANGE_SCRIPT"
+            echo "✅ OIDC token exchange completed using shared script"
+          else
+            echo "❌ OIDC exchange script not found at $EXCHANGE_SCRIPT" >&2
+            exit 1
+          fi
 
       - name: "[Setup] Install Python dependencies"
         run: |
