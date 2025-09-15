@@ -470,7 +470,9 @@ jobs:
           if [[ -z "$DIGEST" || "$DIGEST" == "<no value>" ]]; then
             echo "❌ Could not resolve image digest for $IMAGE_NAME" >&2; exit 1
           fi
-          echo "${IMAGE_NAME%@*}@${DIGEST}" >> images.txt
+          # Extract just the tag portion for JFrog CLI format: tag@sha256
+          IMAGE_TAG=$(echo "$IMAGE_NAME" | awk -F: '{print $2}')
+          echo "${IMAGE_TAG}@${DIGEST}" >> images.txt
           
           # Add worker image
           echo "🔧 Processing worker image: $WORKER_IMAGE"
@@ -482,7 +484,9 @@ jobs:
           if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
             echo "❌ Could not resolve image digest for $WORKER_IMAGE" >&2; exit 1
           fi
-          echo "${WORKER_IMAGE%@*}@${WORKER_DIGEST}" >> images.txt
+          # Extract just the tag portion for JFrog CLI format: tag@sha256
+          WORKER_TAG_ONLY=$(echo "$WORKER_IMAGE" | awk -F: '{print $2}')
+          echo "${WORKER_TAG_ONLY}@${WORKER_DIGEST}" >> images.txt
           
           echo "📋 Docker images to add to build-info:"
           cat images.txt
