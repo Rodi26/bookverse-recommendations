@@ -194,17 +194,13 @@ jobs:
           echo "$SEMVER_OUTPUT"
           echo "🔍 End of raw output"
           
-          # Extract APP_VERSION, BUILD_NUMBER and individual package versions from the Python script's JSON output
+          # Extract APP_VERSION and individual package versions from the Python script's JSON output
+          # NOTE: Build number uses GitHub Actions convention (BUILD_NUMBER), not Python semver output
           JSON_LINE=$(echo "$SEMVER_OUTPUT" | grep '{"application_key"')
           echo "🔍 Extracted JSON line: $JSON_LINE"
           APP_VERSION=$(echo "$JSON_LINE" | jq -r '.app_version')
-          PYTHON_BUILD_NUMBER=$(echo "$JSON_LINE" | jq -r '.build_number')
           if [[ -z "$APP_VERSION" || "$APP_VERSION" == "null" ]]; then
             echo "❌ Failed to extract APP_VERSION from semver output" >&2
-            exit 1
-          fi
-          if [[ -z "$PYTHON_BUILD_NUMBER" || "$PYTHON_BUILD_NUMBER" == "null" ]]; then
-            echo "❌ Failed to extract build_number from semver output" >&2
             exit 1
           fi
           
@@ -239,11 +235,11 @@ jobs:
           echo "  ⚙️ recommendation-config (Generic): $CONFIG_VERSION"
           echo "  📚 resources (Generic): $RESOURCES_VERSION"
           echo "  🏷️ Application: $APP_VERSION"
-          echo "  🔢 Build Number: $PYTHON_BUILD_NUMBER"
+          echo "  🔢 Build Number (for build info): $BUILD_NUMBER"
           
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
-          echo "build_number=$PYTHON_BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "APPLICATION_KEY=$APPLICATION_KEY" >> $GITHUB_ENV
 
       - name: "[Setup] Python"
