@@ -491,14 +491,12 @@ jobs:
           echo "📋 Docker images to add to build-info:"
           cat images.txt
           
-          # Add Docker images to build-info one by one (JFrog CLI expects individual calls)
+          # Use jf rt bad (build add docker) to add individual Docker images
           while IFS= read -r image_line; do
             if [[ -n "$image_line" ]]; then
               echo "📦 Adding image to build-info: $image_line"
-              jf rt build-docker-create "$REPO_KEY" \
+              jf rt bad "$BUILD_NAME" "$BUILD_NUMBER" "$REPO_KEY" \
                 --image "$image_line" \
-                --build-name "$BUILD_NAME" \
-                --build-number "$BUILD_NUMBER" \
                 --project "${{ vars.PROJECT_KEY }}"
             fi
           done < images.txt
