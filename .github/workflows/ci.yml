@@ -567,9 +567,11 @@ jobs:
             --jfrog-url "${{ vars.JFROG_URL }}" \
             --verbose
           
-          # Set the OIDC token as environment variable for all subsequent steps
+          # Output the token for use in subsequent steps (OIDC best practice)
+          echo "token=$JF_OIDC_TOKEN" >> $GITHUB_OUTPUT
+          # Set APPTRUST_ACCESS_TOKEN for promotion library (OIDC authentication)
           echo "APPTRUST_ACCESS_TOKEN=$JF_OIDC_TOKEN" >> $GITHUB_ENV
-          echo "✅ OIDC token exchange completed and set for job-wide use"
+          echo "✅ OIDC token exchange completed and set for promotion authentication"
 
       - name: "[Setup] Install Python dependencies"
         run: |
