@@ -630,13 +630,12 @@ jobs:
         run: |
           echo "🚀 Creating application version ${{ env.APP_VERSION }}"
           
-          # Use persisted JF_OIDC_TOKEN from the OIDC exchange step (following inventory service pattern)
+          # Verify JF_OIDC_TOKEN is available from the OIDC exchange step
           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
             exit 1
           fi
-          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
-          echo "✅ APPTRUST_ACCESS_TOKEN set for AppTrust API authentication"
+          echo "✅ Using JF_OIDC_TOKEN directly for AppTrust API authentication"
           
           # Create application version using correct AppTrust API payload structure
           # Based on working implementation from recommendations service
@@ -662,7 +661,7 @@ jobs:
           RESP_BODY=$(mktemp)
           HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
             "$BASE/applications/$APP_KEY/versions?async=false" \
-            -H "Authorization: Bearer $APPTRUST_ACCESS_TOKEN" \
+            -H "Authorization: Bearer $JF_OIDC_TOKEN" \
             -H "Content-Type: application/json" \
             -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
             -d "$APP_VERSION_PAYLOAD" \
@@ -693,7 +692,7 @@ jobs:
           CONTENT_FILE=$(mktemp)
           CONTENT_STATUS=$(curl -sS -L -o "$CONTENT_FILE" -w "%{http_code}" \
             "$BASE/applications/$APP_KEY/versions/$APP_VERSION/content" \
-            -H "Authorization: Bearer $APPTRUST_ACCESS_TOKEN" \
+            -H "Authorization: Bearer $JF_OIDC_TOKEN" \
             -H "Accept: application/json")
           
           if [[ "$CONTENT_STATUS" != "200" ]]; then
@@ -732,13 +731,12 @@ jobs:
         run: |
           echo "🚀 Promoting to DEV stage and generating evidence"
           
-          # Set APPTRUST_ACCESS_TOKEN for promotion (same pattern as application version creation)
+          # Verify JF_OIDC_TOKEN is available for promotion
           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
             exit 1
           fi
-          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
-          echo "✅ APPTRUST_ACCESS_TOKEN set for DEV promotion"
+          echo "✅ Using JF_OIDC_TOKEN directly for DEV promotion"
           
           # Source evidence library (includes promotion setup)
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
@@ -761,13 +759,12 @@ jobs:
         run: |
           echo "🔍 Promoting to QA stage and generating evidence"
           
-          # Set APPTRUST_ACCESS_TOKEN for promotion (same pattern as application version creation)
+          # Verify JF_OIDC_TOKEN is available for promotion
           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
             exit 1
           fi
-          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
-          echo "✅ APPTRUST_ACCESS_TOKEN set for QA promotion"
+          echo "✅ Using JF_OIDC_TOKEN directly for QA promotion"
           
           # Source evidence library (includes promotion setup)
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
@@ -790,13 +787,12 @@ jobs:
         run: |
           echo "🏗️ Promoting to STAGING stage and generating evidence"
           
-          # Set APPTRUST_ACCESS_TOKEN for promotion (same pattern as application version creation)
+          # Verify JF_OIDC_TOKEN is available for promotion
           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
             exit 1
           fi
-          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
-          echo "✅ APPTRUST_ACCESS_TOKEN set for STAGING promotion"
+          echo "✅ Using JF_OIDC_TOKEN directly for STAGING promotion"
           
           # Source evidence library (includes promotion setup)
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
@@ -819,13 +815,12 @@ jobs:
         run: |
           echo "🚀 Promoting to PROD stage and generating evidence"
           
-          # Set APPTRUST_ACCESS_TOKEN for promotion (same pattern as application version creation)
+          # Verify JF_OIDC_TOKEN is available for promotion
           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
             exit 1
           fi
-          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
-          echo "✅ APPTRUST_ACCESS_TOKEN set for PROD promotion"
+          echo "✅ Using JF_OIDC_TOKEN directly for PROD promotion"
           
           # Source evidence library (includes promotion setup)
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
