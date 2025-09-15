@@ -535,6 +535,7 @@ jobs:
       # Common promotion environment variables
       EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
       JFROG_URL: ${{ vars.JFROG_URL }}
+      JF_URL: ${{ vars.JFROG_URL }}
       PROJECT_KEY: ${{ vars.PROJECT_KEY }}
       STAGES_STR: "DEV QA STAGING PROD"
       FINAL_STAGE: "PROD"
