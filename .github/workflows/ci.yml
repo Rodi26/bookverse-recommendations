@@ -363,10 +363,7 @@ jobs:
           # Upload to generic repository
           GENERIC_REPO="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-generic-nonprod-local"
           jf rt upload "dist/config/recommendations-settings.yaml" "$GENERIC_REPO/$SERVICE_NAME/config/$CONFIG_VERSION/recommendations-settings.yaml" \
-            --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}" || {
-            echo "⚠️ Artifact upload failed (possibly already exists and promoted) - continuing..."
-            echo "✅ Treating as success since artifact may already be promoted"
-          }
+            --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
           echo "✅ Recommendation config artifact uploaded with version $CONFIG_VERSION"
 
       - name: "[Evidence] Config Package Evidence"
@@ -402,10 +399,7 @@ jobs:
           # Upload to generic repository
           GENERIC_REPO="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-generic-nonprod-local"
           jf rt upload "dist/resources/stopwords.txt" "$GENERIC_REPO/$SERVICE_NAME/resources/$RESOURCES_VERSION/stopwords.txt" \
-            --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}" || {
-            echo "⚠️ Artifact upload failed (possibly already exists and promoted) - continuing..."
-            echo "✅ Treating as success since artifact may already be promoted"
-          }
+            --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
           echo "✅ Resources artifact uploaded with version $RESOURCES_VERSION"
 
       - name: "[Evidence] Resources Package Evidence"
