@@ -564,11 +564,15 @@ jobs:
           set -euo pipefail
           echo "🔐 Exchanging OIDC token using shared script from bookverse-devops"
           
-          # Use shared OIDC exchange script
+          # Use shared OIDC exchange script with proper parameters
           EXCHANGE_SCRIPT="bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh"
           if [[ -f "$EXCHANGE_SCRIPT" ]]; then
             chmod +x "$EXCHANGE_SCRIPT"
-            source "$EXCHANGE_SCRIPT"
+            "$EXCHANGE_SCRIPT" \
+              --service-name "recommendations" \
+              --provider-name "bookverse-recommendations-github" \
+              --jfrog-url "${{ vars.JFROG_URL }}" \
+              --verbose
             echo "✅ OIDC token exchange completed using shared script"
           else
             echo "❌ OIDC exchange script not found at $EXCHANGE_SCRIPT" >&2
@@ -634,13 +638,12 @@ jobs:
         run: |
           echo "🚀 Creating application version ${{ env.APP_VERSION }}"
           
-           # Get the OIDC token from the build-test-publish job outputs
-           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
-           if [[ -z "$OIDC_TOKEN" ]]; then
-             echo "❌ Failed to get OIDC token from build-test-publish job" >&2
+           # Use the JF_OIDC_TOKEN from the OIDC exchange step
+           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
+             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
              exit 1
            fi
-           echo "✅ Using OIDC token from build-test-publish job for AppTrust API authentication"
+           echo "✅ Using JF_OIDC_TOKEN for AppTrust API authentication"
           
           # Create application version using correct AppTrust API payload structure
           # Based on working implementation from recommendations service
@@ -669,7 +672,7 @@ jobs:
           RESP_BODY=$(mktemp)
            HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
              "$BASE/applications/$APP_KEY/versions?async=false" \
-             -H "Authorization: Bearer $OIDC_TOKEN" \
+             -H "Authorization: Bearer $JF_OIDC_TOKEN" \
               -H "Content-Type: application/json" \
               -H "X-JFrog-Project: ${{ vars.PROJECT_KEY }}" \
               -d "$APP_VERSION_PAYLOAD" \
@@ -700,7 +703,7 @@ jobs:
           CONTENT_FILE=$(mktemp)
            CONTENT_STATUS=$(curl -sS -L -o "$CONTENT_FILE" -w "%{http_code}" \
              "$BASE/applications/$APP_KEY/versions/$APP_VERSION/content" \
-             -H "Authorization: Bearer $OIDC_TOKEN" \
+             -H "Authorization: Bearer $JF_OIDC_TOKEN" \
             -H "Accept: application/json")
           
           if [[ "$CONTENT_STATUS" != "200" ]]; then
@@ -739,16 +742,15 @@ jobs:
         run: |
           echo "🚀 Promoting to DEV stage and generating evidence"
           
-           # Use the OIDC token from build-test-publish job for promotion
-           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
-           if [[ -z "$OIDC_TOKEN" ]]; then
-             echo "❌ Missing OIDC token from build-test-publish job" >&2
+           # Use the JF_OIDC_TOKEN from the OIDC exchange step
+           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
+             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
              exit 1
            fi
-           echo "✅ Using OIDC token from build-test-publish job for DEV promotion"
+           echo "✅ Using JF_OIDC_TOKEN for DEV promotion"
           
           # Source evidence library (includes promotion setup)
-          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
+          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
@@ -769,12 +771,15 @@ jobs:
         run: |
           echo "🔍 Promoting to QA stage and generating evidence"
           
-           # Use the OIDC token from build-test-publish job for promotion
-           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
-           echo "✅ Using OIDC token from build-test-publish job for QA promotion"
+           # Use the JF_OIDC_TOKEN from the OIDC exchange step
+           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
+             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
+             exit 1
+           fi
+           echo "✅ Using JF_OIDC_TOKEN for QA promotion"
           
           # Source evidence library (includes promotion setup)
-          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
+          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
@@ -795,12 +800,15 @@ jobs:
         run: |
           echo "🏗️ Promoting to STAGING stage and generating evidence"
           
-           # Use the OIDC token from build-test-publish job for promotion
-           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
-           echo "✅ Using OIDC token from build-test-publish job for STAGING promotion"
+           # Use the JF_OIDC_TOKEN from the OIDC exchange step
+           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
+             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
+             exit 1
+           fi
+           echo "✅ Using JF_OIDC_TOKEN for STAGING promotion"
           
           # Source evidence library (includes promotion setup)
-          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
+          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
@@ -821,12 +829,15 @@ jobs:
         run: |
           echo "🚀 Promoting to PROD stage and generating evidence"
           
-           # Use the OIDC token from build-test-publish job for promotion
-           OIDC_TOKEN="${{ needs.build-test-publish.outputs.jf_oidc_token }}"
-           echo "✅ Using OIDC token from build-test-publish job for PROD promotion"
+           # Use the JF_OIDC_TOKEN from the OIDC exchange step
+           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
+             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
+             exit 1
+           fi
+           echo "✅ Using JF_OIDC_TOKEN for PROD promotion"
           
           # Source evidence library (includes promotion setup)
-          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
+          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
