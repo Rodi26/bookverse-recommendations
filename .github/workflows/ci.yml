@@ -630,13 +630,12 @@ jobs:
         run: |
           echo "🚀 Creating application version ${{ env.APP_VERSION }}"
           
-          # Set APPTRUST_ACCESS_TOKEN using OIDC token from exchange step (following inventory service pattern)
-          OIDC_TOKEN="${{ steps.exchange-oidc.outputs.token }}"
-          if [[ -z "$OIDC_TOKEN" ]]; then
-            echo "❌ Failed to get OIDC token from exchange step" >&2
+          # Use persisted JF_OIDC_TOKEN from the OIDC exchange step (following inventory service pattern)
+          if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
+            echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
             exit 1
           fi
-          export APPTRUST_ACCESS_TOKEN="$OIDC_TOKEN"
+          export APPTRUST_ACCESS_TOKEN="$JF_OIDC_TOKEN"
           echo "✅ APPTRUST_ACCESS_TOKEN set for AppTrust API authentication"
           
           # Create application version using correct AppTrust API payload structure
