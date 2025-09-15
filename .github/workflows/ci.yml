@@ -194,12 +194,17 @@ jobs:
           echo "$SEMVER_OUTPUT"
           echo "🔍 End of raw output"
           
-          # Extract APP_VERSION and individual package versions from the Python script's JSON output
+          # Extract APP_VERSION, BUILD_NUMBER and individual package versions from the Python script's JSON output
           JSON_LINE=$(echo "$SEMVER_OUTPUT" | grep '{"application_key"')
           echo "🔍 Extracted JSON line: $JSON_LINE"
           APP_VERSION=$(echo "$JSON_LINE" | jq -r '.app_version')
+          PYTHON_BUILD_NUMBER=$(echo "$JSON_LINE" | jq -r '.build_number')
           if [[ -z "$APP_VERSION" || "$APP_VERSION" == "null" ]]; then
             echo "❌ Failed to extract APP_VERSION from semver output" >&2
+            exit 1
+          fi
+          if [[ -z "$PYTHON_BUILD_NUMBER" || "$PYTHON_BUILD_NUMBER" == "null" ]]; then
+            echo "❌ Failed to extract build_number from semver output" >&2
             exit 1
           fi
           
@@ -234,9 +239,11 @@ jobs:
           echo "  ⚙️ recommendation-config (Generic): $CONFIG_VERSION"
           echo "  📚 resources (Generic): $RESOURCES_VERSION"
           echo "  🏷️ Application: $APP_VERSION"
+          echo "  🔢 Build Number: $PYTHON_BUILD_NUMBER"
           
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
+          echo "build_number=$PYTHON_BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "APPLICATION_KEY=$APPLICATION_KEY" >> $GITHUB_ENV
 
       - name: "[Setup] Python"
@@ -586,53 +593,20 @@ jobs:
           pip install --user PyYAML setuptools wheel
           echo "✅ Python dependencies installed"
 
-      - name: "[Setup] Determine SemVer"
-        id: determine-semver
+      - name: "[Setup] Use App Version from Build Job"
+        id: use-app-version
         run: |
-          set -euo pipefail
-          SERVICE_NAME=${SERVICE_NAME:-$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')}
-          APPLICATION_KEY="bookverse-$SERVICE_NAME"
+          # Use the app version that was already determined in the build-test-publish job
+          # No need to re-run semver determination - use the version from the published build
+          APP_VERSION="${{ needs.build-test-publish.outputs.app_version }}"
           
-          # Use the persisted JF_OIDC_TOKEN from the auth step
-          if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
-            echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
+          if [[ -z "$APP_VERSION" ]]; then
+            echo "❌ Missing app_version from build-test-publish job output" >&2
             exit 1
           fi
           
-          echo "✅ Using persisted JFrog access token for semver determination"
-          
-          # Use shared semver logic from bookverse-infra (proper infrastructure repository)
-          echo "📋 Using shared semver logic from bookverse-infra"
-          
-          # Copy shared scripts from bookverse-infra/libraries/bookverse-devops
-          INFRA_SCRIPTS_PATH="bookverse-infra/libraries/bookverse-devops/scripts"
-          if [[ -f "$INFRA_SCRIPTS_PATH/determine-semver.sh" ]]; then
-            cp "$INFRA_SCRIPTS_PATH/determine-semver.sh" .
-            cp "$INFRA_SCRIPTS_PATH/semver_versioning.py" .
-            chmod +x determine-semver.sh
-            echo "✅ Using shared semver scripts from bookverse-infra"
-          else
-            echo "❌ Shared semver scripts not found in bookverse-infra at $INFRA_SCRIPTS_PATH" >&2
-            exit 1
-          fi
-          
-          # Use the shared semver determination script (for APPLICATION version, not package-specific)
-          SEMVER_OUTPUT=$(./determine-semver.sh \
-            --application-key "$APPLICATION_KEY" \
-            --version-map "./config/version-map.yaml" \
-            --jfrog-url "${{ vars.JFROG_URL }}" \
-            --jfrog-token "$JF_OIDC_TOKEN" \
-            --project-key "${{ vars.PROJECT_KEY }}" \
-            --verbose)
-          
-          # Extract APP_VERSION from the Python script's JSON output (same as first semver call)
-          JSON_LINE=$(echo "$SEMVER_OUTPUT" | grep '{"application_key"')
-          APP_VERSION=$(echo "$JSON_LINE" | jq -r '.app_version')
-          if [[ -z "$APP_VERSION" || "$APP_VERSION" == "null" ]]; then
-            echo "❌ Failed to extract APP_VERSION from semver output" >&2
-            exit 1
-          fi
-          echo "🏷️ Application Version: $APP_VERSION"
+          echo "🏷️ Using Application Version from build job: $APP_VERSION"
+          echo "📋 This version is already associated with the published build info"
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
           echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
 
