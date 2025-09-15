@@ -2,7 +2,6 @@ applications:
   - key: bookverse-recommendations
     seeds:
       application: 4.1.18
-      build: 5.3.29
     packages:
       - type: docker
         name: recommendations

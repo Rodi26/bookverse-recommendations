@@ -213,11 +213,23 @@ jobs:
           CONFIG_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags."recommendation-config" // empty')
           RESOURCES_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags.resources // empty')
           
-          # Fallback to build number if any version is empty
-          RECOMMENDATIONS_VERSION=${RECOMMENDATIONS_VERSION:-$BUILD_NUMBER}
-          WORKER_VERSION=${WORKER_VERSION:-$BUILD_NUMBER}
-          CONFIG_VERSION=${CONFIG_VERSION:-$BUILD_NUMBER}
-          RESOURCES_VERSION=${RESOURCES_VERSION:-$BUILD_NUMBER}
+          # Validate that all package versions were determined successfully
+          if [[ -z "$RECOMMENDATIONS_VERSION" ]]; then
+            echo "❌ Failed to determine RECOMMENDATIONS_VERSION from semver script" >&2
+            exit 1
+          fi
+          if [[ -z "$WORKER_VERSION" ]]; then
+            echo "❌ Failed to determine WORKER_VERSION from semver script" >&2
+            exit 1
+          fi
+          if [[ -z "$CONFIG_VERSION" ]]; then
+            echo "❌ Failed to determine CONFIG_VERSION from semver script" >&2
+            exit 1
+          fi
+          if [[ -z "$RESOURCES_VERSION" ]]; then
+            echo "❌ Failed to determine RESOURCES_VERSION from semver script" >&2
+            exit 1
+          fi
           
           # Set all package versions as environment variables
           echo "RECOMMENDATIONS_VERSION=$RECOMMENDATIONS_VERSION" >> $GITHUB_ENV
