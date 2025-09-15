@@ -453,58 +453,12 @@ jobs:
 
       - name: "[Build Info] Publish"
         run: |
-          # Associate all pushed Docker images with the build-info before publishing
-          REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
-          echo "🔗 Adding multiple docker images to build-info"
-          
-          # Create images file with all Docker images
-          > images.txt
-          
-          # Add main recommendations image
-          echo "📦 Processing recommendations image: $IMAGE_NAME"
-          DIGEST=$(docker inspect "$IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
-          if [[ -z "$DIGEST" || "$DIGEST" == "<no value>" ]]; then
-            docker pull "$IMAGE_NAME" >/dev/null 2>&1 || true
-            DIGEST=$(docker inspect "$IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
-          fi
-          if [[ -z "$DIGEST" || "$DIGEST" == "<no value>" ]]; then
-            echo "❌ Could not resolve image digest for $IMAGE_NAME" >&2; exit 1
-          fi
-          # Extract just the tag portion for JFrog CLI format: tag@sha256
-          IMAGE_TAG=$(echo "$IMAGE_NAME" | awk -F: '{print $2}')
-          echo "${IMAGE_TAG}@${DIGEST}" >> images.txt
-          
-          # Add worker image
-          echo "🔧 Processing worker image: $WORKER_IMAGE"
-          WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
-          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
-            docker pull "$WORKER_IMAGE" >/dev/null 2>&1 || true
-            WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
-          fi
-          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
-            echo "❌ Could not resolve image digest for $WORKER_IMAGE" >&2; exit 1
-          fi
-          # Extract just the tag portion for JFrog CLI format: tag@sha256
-          WORKER_TAG_ONLY=$(echo "$WORKER_IMAGE" | awk -F: '{print $2}')
-          echo "${WORKER_TAG_ONLY}@${WORKER_DIGEST}" >> images.txt
-          
-          echo "📋 Docker images to add to build-info:"
-          cat images.txt
-          
-          # Use jf rt bdc (build-docker-create) with single image format (one call per image)
-          while IFS= read -r image_line; do
-            if [[ -n "$image_line" ]]; then
-              echo "📦 Adding image to build-info: $image_line"
-              # Create single-image file for this image
-              echo "$image_line" > single_image.txt
-              jf rt bdc "$REPO_KEY" \
-                --image-file single_image.txt \
-                --build-name "$BUILD_NAME" \
-                --build-number "$BUILD_NUMBER" \
-                --project "${{ vars.PROJECT_KEY }}"
-              rm -f single_image.txt
-            fi
-          done < images.txt
+          # Docker images are already included in build-info from jf docker build commands
+          # No additional processing needed - Docker images are standalone artifacts
+          echo "🔗 Build-info already contains Docker images from jf docker build commands"
+          echo "✅ Main image: $IMAGE_NAME (included via jf docker build)"
+          echo "✅ Worker image: $WORKER_IMAGE (included via jf docker build)" 
+          echo "ℹ️ Docker images in JFrog are standalone artifacts without dependencies"
           
           
           jf rt bag --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
