@@ -761,6 +761,85 @@ jobs:
           
           echo "✅ Application version evidence attached: slsa-provenance, jira-release"
 
+      - name: "[DEBUG] Direct Application Evidence Test"
+        env:
+          EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
+        run: |
+          echo "🔬 DEBUG: Testing direct JFrog CLI application evidence commands"
+          echo "📋 This is a debug step to isolate application evidence issues"
+          
+          # Create a simple debug evidence file for application
+          cat > debug-slsa-test.json << 'EOF'
+          {
+            "predicateType": "https://slsa.dev/provenance/v1",
+            "predicate": {
+              "buildDefinition": {
+                "buildType": "https://github.com/actions/runner",
+                "externalParameters": {
+                  "workflow": "CI"
+                }
+              },
+              "runDetails": {
+                "builder": {
+                  "id": "https://github.com/actions/runner"
+                }
+              },
+              "metadata": {
+                "buildInvocationId": "debug-test-app-67890",
+                "completeness": {
+                  "parameters": true,
+                  "environment": false,
+                  "materials": false
+                }
+              }
+            }
+          }
+          EOF
+          
+          # Create debug markdown
+          cat > debug-slsa-test.md << 'EOF'
+          # DEBUG: SLSA Provenance Test
+          
+          This is a DEBUG evidence attachment to test direct CLI commands for APPLICATION evidence.
+          This evidence is attached directly via JFrog CLI without using the evidence library.
+          
+          **Purpose**: Isolate whether the application evidence issue is with OIDC permissions or library code.
+          EOF
+          
+          echo "📋 Debug application evidence files created"
+          echo "🔍 Current environment:"
+          echo "  APPLICATION_KEY: $APPLICATION_KEY"
+          echo "  APP_VERSION: $APP_VERSION"
+          echo "  PROJECT_KEY: ${{ vars.PROJECT_KEY }}"
+          echo "  JF_URL: ${JF_URL:-}"
+          echo "  JFROG_URL: ${JFROG_URL:-}"
+          
+          # Test JFrog CLI authentication first
+          echo "🔍 Testing JFrog CLI authentication for application evidence..."
+          if jf rt ping; then
+            echo "✅ JFrog CLI authentication is working"
+          else
+            echo "❌ JFrog CLI authentication failed"
+          fi
+          
+          # Direct JFrog CLI command for APPLICATION evidence - match library approach exactly
+          echo "🚀 Executing direct jf evd create-evidence command for APPLICATION (release bundle)..."
+          jf evd create-evidence \
+            --predicate "debug-slsa-test.json" \
+            --markdown "debug-slsa-test.md" \
+            --predicate-type "https://slsa.dev/provenance/v1" \
+            --release-bundle "${APPLICATION_KEY}" \
+            --release-bundle-version "${APP_VERSION}" \
+            --project "${{ vars.PROJECT_KEY }}" \
+            --provider-id github-actions \
+            --key "${EVIDENCE_PRIVATE_KEY:-}" \
+            --key-alias "${EVIDENCE_KEY_ALIAS:-${{ vars.EVIDENCE_KEY_ALIAS }}}" || {
+            echo "❌ DEBUG: Direct CLI command failed with exit code $?"
+            echo "🔍 This will help isolate if it's the same URL parameter issue or something else"
+          }
+          
+          echo "✅ DEBUG: Direct application evidence test completed"
+
       - name: "[Promote & Evidence] DEV Stage"
         run: |
           echo "🚀 Promoting to DEV stage and generating evidence"
