@@ -504,11 +504,12 @@ jobs:
             echo "❌ Could not resolve image digest for $WORKER_IMAGE" >&2; exit 1
           fi
           
-          # Create images file with both images and their digests
+          # Create images file with proper format: image-tag@sha256:digest (one per line)
+          # Remove any existing @digest from image names and add the resolved digest
           echo "${IMAGE_NAME%@*}@${MAIN_DIGEST}" > images.txt
           echo "${WORKER_IMAGE%@*}@${WORKER_DIGEST}" >> images.txt
           
-          echo "📋 Images to associate with build info:"
+          echo "📋 Images to associate with build info (corrected format):"
           cat images.txt
           
           # Associate Docker images with build info (critical step that was missing)
