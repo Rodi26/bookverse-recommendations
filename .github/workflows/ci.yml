@@ -2,6 +2,11 @@ name: CI
 
 # DEMO-READY: Automatic triggers enabled for full CI/CD pipeline demonstration
 # PRODUCTION NOTE: Real systems would have additional branch protection and approval gates
+
+# Concurrency control to prevent race conditions when modifying the same objects
+concurrency:
+  group: ci-${{ vars.PROJECT_KEY }}-${{ github.repository }}
+  cancel-in-progress: true
 on:
   push:
     branches: [main]
