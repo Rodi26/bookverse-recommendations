@@ -772,15 +772,15 @@ jobs:
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
         run: |
-          echo "🔬 DEBUG: Testing various JFrog CLI commands to isolate permissions issue"
-          echo "📋 This will help determine if it's a general auth issue or evidence-specific"
+          echo "🔬 DEBUG: Testing release bundle creation and evidence attachment"
+          echo "📋 This will test if we can create our own RB and attach evidence to it"
           
           echo "🔍 Current environment:"
           echo "  APPLICATION_KEY: $APPLICATION_KEY"
-          echo "  APP_VERSION: $APP_VERSION"
+          echo "  APP_VERSION: $APP_VERSION" 
           echo "  PROJECT_KEY: ${{ vars.PROJECT_KEY }}"
-          echo "  JF_URL: ${JF_URL:-<not set>}"
-          echo "  JFROG_URL: ${JFROG_URL:-<not set>}"
+          echo "  BUILD_NAME: $BUILD_NAME"
+          echo "  BUILD_NUMBER: $BUILD_NUMBER"
           
           echo ""
           echo "🧪 TEST 1: Basic JFrog CLI authentication"
@@ -788,19 +788,82 @@ jobs:
             echo "✅ JFrog CLI ping successful"
           else
             echo "❌ JFrog CLI ping failed"
+            exit 1
           fi
           
           echo ""
-          echo "🧪 TEST 4: Application version update (tag modification)"
-          echo "📋 Testing: jf apptrust version-update to modify tag"
-          if jf apptrust version-update "$APPLICATION_KEY" "$APP_VERSION" --tag "debug-test-$(date +%s)" --project "${{ vars.PROJECT_KEY }}"; then
-            echo "✅ AppTrust version-update successful - NOT a permissions issue!"
+          echo "🧪 TEST 2: Create temporary release bundle from build"
+          TEST_RB_NAME="debug-test-rb-$(date +%s)"
+          TEST_RB_VERSION="1.0.0"
+          
+          echo "📋 Creating release bundle: $TEST_RB_NAME @ $TEST_RB_VERSION"
+          echo "📋 Using build: $BUILD_NAME #$BUILD_NUMBER"
+          
+          if jf rbc "$TEST_RB_NAME" "$TEST_RB_VERSION" \
+            --build-name "$BUILD_NAME" \
+            --build-number "$BUILD_NUMBER" \
+            --project "${{ vars.PROJECT_KEY }}"; then
+            echo "✅ Release bundle creation successful!"
           else
-            echo "❌ AppTrust version-update failed with exit code $?"
-            echo "🔍 This suggests a broader authentication/permissions issue"
+            echo "❌ Release bundle creation failed with exit code $?"
+            echo "🔍 This suggests build info or permissions issue"
+            exit 1
           fi
           
-          echo "📊 DEBUG SUMMARY: AppTrust CLI permissions test completed"
+          echo ""
+          echo "🧪 TEST 3: Create evidence for our test release bundle"
+          cat > debug-rb-test.json << 'EOF'
+          {
+            "predicateType": "https://debug.test/release-bundle/v1",
+            "predicate": {
+              "test_purpose": "release_bundle_evidence_test",
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "build_info": "$BUILD_NAME-$BUILD_NUMBER"
+            }
+          }
+          EOF
+          
+          echo "📋 Attaching evidence to test release bundle..."
+          if jf evd create-evidence \
+            --predicate "debug-rb-test.json" \
+            --predicate-type "https://debug.test/release-bundle/v1" \
+            --release-bundle "$TEST_RB_NAME" \
+            --release-bundle-version "$TEST_RB_VERSION" \
+            --project "${{ vars.PROJECT_KEY }}" \
+            --provider-id github-actions \
+            --key "${EVIDENCE_PRIVATE_KEY:-}" \
+            --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}"; then
+            echo "✅ Evidence attachment to test RB successful!"
+          else
+            echo "❌ Evidence attachment to test RB failed with exit code $?"
+            echo "�� This suggests evidence command or authentication issue"
+          fi
+          
+          echo ""
+          echo "🧪 TEST 4: Test evidence on original application release bundle"
+          echo "📋 Testing evidence attachment to: $APPLICATION_KEY @ $APP_VERSION"
+          
+          if jf evd create-evidence \
+            --predicate "debug-rb-test.json" \
+            --predicate-type "https://debug.test/release-bundle/v1" \
+            --release-bundle "$APPLICATION_KEY" \
+            --release-bundle-version "$APP_VERSION" \
+            --project "${{ vars.PROJECT_KEY }}" \
+            --provider-id github-actions \
+            --key "${EVIDENCE_PRIVATE_KEY:-}" \
+            --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}"; then
+            echo "✅ Evidence attachment to original RB successful!"
+          else
+            echo "❌ Evidence attachment to original RB failed with exit code $?"
+            echo "🔍 This suggests issue specific to our application release bundle"
+          fi
+          
+          echo ""
+          echo "📊 DEBUG SUMMARY:"
+          echo "  - If test RB works but original fails → Issue with application RB"
+          echo "  - If both fail → General evidence command issue"
+          echo "  - If test RB creation fails → Build info or permissions issue"
+          echo "✅ DEBUG: Release bundle evidence test completed"
       - name: "[DEBUG] Application Evidence Mode Detection"
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
