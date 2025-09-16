@@ -609,22 +609,32 @@ jobs:
           echo "  BUILD_NAME: $BUILD_NAME"
           echo "  BUILD_NUMBER: $BUILD_NUMBER"
           echo "  PROJECT_KEY: ${{ vars.PROJECT_KEY }}"
+          echo "  JF_URL: ${JF_URL:-}"
+          echo "  JFROG_URL: ${JFROG_URL:-}"
           
-          # Direct JFrog CLI command - no library
-          echo "🚀 Executing direct jf evd create-evidence command..."
+          # Test JFrog CLI authentication first
+          echo "🔍 Testing JFrog CLI authentication..."
+          if jf rt ping; then
+            echo "✅ JFrog CLI authentication is working"
+          else
+            echo "❌ JFrog CLI authentication failed"
+          fi
+          
+          # Direct JFrog CLI command - match library approach exactly
+          echo "🚀 Executing direct jf evd create-evidence command (matching library approach)..."
           jf evd create-evidence \
             --predicate "debug-fossa-test.json" \
             --markdown "debug-fossa-test.md" \
             --predicate-type "https://fossa.com/evidence/license-scan/v2.1" \
-            --build-name "$BUILD_NAME" \
-            --build-number "$BUILD_NUMBER" \
+            --build-name "${BUILD_NAME}" \
+            --build-number "${BUILD_NUMBER}" \
             --project "${{ vars.PROJECT_KEY }}" \
             --provider-id github-actions \
-            --url "${{ vars.JFROG_URL }}" \
-            --key "$EVIDENCE_PRIVATE_KEY" \
-            --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}" || {
+            --url "${JFROG_URL:-${JF_URL:-}}" \
+            --key "${EVIDENCE_PRIVATE_KEY:-}" \
+            --key-alias "${EVIDENCE_KEY_ALIAS:-${{ vars.EVIDENCE_KEY_ALIAS }}}" || {
             echo "❌ DEBUG: Direct CLI command failed with exit code $?"
-            echo "🔍 This indicates the issue is with OIDC permissions, not library code"
+            echo "🔍 This may indicate OIDC authentication or permissions issue"
           }
           
           echo "✅ DEBUG: Direct evidence test completed"
