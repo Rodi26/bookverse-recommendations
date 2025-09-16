@@ -762,6 +762,40 @@ jobs:
           
           echo "✅ Application version evidence attached: slsa-provenance, jira-release"
 
+
+      - name: "[DEBUG] AppTrust CLI Permissions Test"
+        env:
+          EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
+        run: |
+          echo "🔬 DEBUG: Testing various JFrog CLI commands to isolate permissions issue"
+          echo "📋 This will help determine if it's a general auth issue or evidence-specific"
+          
+          echo "🔍 Current environment:"
+          echo "  APPLICATION_KEY: $APPLICATION_KEY"
+          echo "  APP_VERSION: $APP_VERSION"
+          echo "  PROJECT_KEY: ${{ vars.PROJECT_KEY }}"
+          echo "  JF_URL: ${JF_URL:-<not set>}"
+          echo "  JFROG_URL: ${JFROG_URL:-<not set>}"
+          
+          echo ""
+          echo "🧪 TEST 1: Basic JFrog CLI authentication"
+          if jf rt ping; then
+            echo "✅ JFrog CLI ping successful"
+          else
+            echo "❌ JFrog CLI ping failed"
+          fi
+          
+          echo ""
+          echo "🧪 TEST 4: Application version update (tag modification)"
+          echo "📋 Testing: jf apptrust version-update to modify tag"
+          if jf apptrust version-update "$APPLICATION_KEY" "$APP_VERSION" --tag "debug-test-$(date +%s)" --project "${{ vars.PROJECT_KEY }}"; then
+            echo "✅ AppTrust version-update successful - NOT a permissions issue!"
+          else
+            echo "❌ AppTrust version-update failed with exit code $?"
+            echo "🔍 This suggests a broader authentication/permissions issue"
+          fi
+          
+          echo "📊 DEBUG SUMMARY: AppTrust CLI permissions test completed"
       - name: "[DEBUG] Application Evidence Mode Detection"
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
