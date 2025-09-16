@@ -504,19 +504,21 @@ jobs:
             echo "❌ Could not resolve image digest for $WORKER_IMAGE" >&2; exit 1
           fi
           
-          # Create images file with proper format: image-tag@sha256:digest (one per line)
-          # Extract just the image tag (without registry/repo path) and add digest
-          MAIN_TAG=$(echo "$IMAGE_NAME" | awk -F'/' '{print $NF}' | cut -d'@' -f1)
-          WORKER_TAG=$(echo "$WORKER_IMAGE" | awk -F'/' '{print $NF}' | cut -d'@' -f1)
-          echo "${MAIN_TAG}@${MAIN_DIGEST}" > images.txt
-          echo "${WORKER_TAG}@${WORKER_DIGEST}" >> images.txt
-          
-          echo "📋 Images to associate with build info (corrected format):"
-          cat images.txt
-          
-          # Associate Docker images with build info (critical step that was missing)
+          # Associate each Docker image separately (following inventory service pattern)
+          # Main recommendations image
+          echo "${IMAGE_NAME%@*}@${MAIN_DIGEST}" > main_image.txt
+          echo "📋 Associating main image: $(cat main_image.txt)"
           jf rt build-docker-create "$REPO_KEY" \
-            --image-file images.txt \
+            --image-file main_image.txt \
+            --build-name "$BUILD_NAME" \
+            --build-number "$BUILD_NUMBER" \
+            --project "${{ vars.PROJECT_KEY }}"
+          
+          # Worker image
+          echo "${WORKER_IMAGE%@*}@${WORKER_DIGEST}" > worker_image.txt
+          echo "📋 Associating worker image: $(cat worker_image.txt)"
+          jf rt build-docker-create "$REPO_KEY" \
+            --image-file worker_image.txt \
             --build-name "$BUILD_NAME" \
             --build-number "$BUILD_NUMBER" \
             --project "${{ vars.PROJECT_KEY }}"
