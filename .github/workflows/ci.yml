@@ -416,7 +416,7 @@ jobs:
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Set package-specific environment variables
-          export PACKAGE_NAME="resources"
+          export PACKAGE_NAME="recommendations-resources"
           export PACKAGE_VERSION="$RESOURCES_VERSION"
           
           # Attach generic package evidence
