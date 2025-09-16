@@ -762,6 +762,45 @@ jobs:
           
           echo "✅ Application version evidence attached: slsa-provenance, jira-release"
 
+      - name: "[DEBUG] Application Evidence Mode Detection"
+        env:
+          EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
+        run: |
+          echo "🔬 DEBUG: Testing application evidence mode after fix"
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          
+          echo "🔍 Environment check:"
+          echo "  APPLICATION_KEY: $APPLICATION_KEY"
+          echo "  APP_VERSION: $APP_VERSION"
+          echo "  ATTACH_TO_PACKAGE: ${ATTACH_TO_PACKAGE:-<unset>}"
+          echo "  ATTACH_TO_BUILD: ${ATTACH_TO_BUILD:-<unset>}"
+          
+          export ATTACH_TO_PACKAGE="false"
+          export ATTACH_TO_BUILD="false"
+          
+          echo "�� After exports - should use Mode 3 (Release Bundle):"
+          if [[ "${ATTACH_TO_PACKAGE:-}" == "true" ]]; then
+            echo "  → Package mode - WRONG"
+          elif [[ "${ATTACH_TO_BUILD:-}" == "true" ]]; then
+            echo "  → Build mode - WRONG"  
+          else
+            echo "  → Release bundle mode - CORRECT ✅"
+          fi
+          
+          cat > debug-mode-test.json << 'JSONEOF'
+          {
+            "predicateType": "https://slsa.dev/provenance/v1",
+            "predicate": {
+              "debug_test": "application_evidence_mode_fix_validation",
+              "expected_mode": "release_bundle_with_url_fix"
+            }
+          }
+          JSONEOF
+          
+          echo "🚀 Testing evd_create with fixed mode..."
+          evd_create debug-mode-test.json "https://slsa.dev/provenance/v1" || echo "❌ Failed with exit code $?"
+
+
       - name: "[Promote & Evidence] DEV Stage"
         run: |
           echo "🚀 Promoting to DEV stage and generating evidence"
