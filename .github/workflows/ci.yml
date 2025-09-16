@@ -118,7 +118,7 @@ jobs:
       - name: "[Setup] JFrog CLI"
         uses: EyalDelarea/setup-jfrog-cli@swampUpAppTrust
         with:
-          version: 2.78.9
+          version: latest
           oidc-provider-name: bookverse-recommendations-github
           oidc-audience: ${{ vars.JFROG_URL }}
           disable-job-summary: true
@@ -613,7 +613,7 @@ jobs:
       - name: "[Setup] JFrog CLI"
         uses: EyalDelarea/setup-jfrog-cli@swampUpAppTrust
         with:
-          version: 2.78.9
+          version: latest
         env:
           JFROG_CLI_BUILD_NAME: ${{ needs.build-test-publish.outputs.build_name }}
           JFROG_CLI_BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
