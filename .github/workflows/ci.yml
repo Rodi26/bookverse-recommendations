@@ -384,6 +384,71 @@ jobs:
           
           echo "✅ Config package evidence attached: config-bundle"
 
+      - name: "[DEBUG] Package Evidence Repository Investigation"
+        env:
+          EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
+        run: |
+          echo "🔬 DEBUG: Investigating package evidence repository issue"
+          echo "📋 This debug step will help identify why packages can't be found"
+          
+          echo "🔍 Current environment:"
+          echo "  SERVICE_NAME: $SERVICE_NAME"
+          echo "  PROJECT_KEY: ${{ vars.PROJECT_KEY }}"
+          echo "  CONFIG_VERSION: $CONFIG_VERSION"
+          echo "  PACKAGE_NAME: recommendation-config"
+          echo "  PACKAGE_VERSION: $CONFIG_VERSION"
+          
+          # Show what repositories exist
+          echo "🔍 Available repositories:"
+          jf rt curl -X GET "/api/repositories" | jq -r '.[] | select(.key | contains("'$SERVICE_NAME'")) | .key'
+          
+          # Check what's in the generic repository
+          GENERIC_REPO="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-generic-nonprod-local"
+          echo "🔍 Contents of generic repository: $GENERIC_REPO"
+          echo "🔍 Path being checked: $SERVICE_NAME/config/$CONFIG_VERSION/"
+          jf rt curl -X GET "/api/storage/$GENERIC_REPO/$SERVICE_NAME/config/$CONFIG_VERSION/" | jq '.'
+          
+          # Also check without the service name prefix
+          echo "🔍 Alternative path check: config/$CONFIG_VERSION/"
+          jf rt curl -X GET "/api/storage/$GENERIC_REPO/config/$CONFIG_VERSION/" | jq '.'
+          
+          # List all items in the repository
+          echo "🔍 All items in repository $GENERIC_REPO:"
+          jf rt curl -X GET "/api/storage/$GENERIC_REPO/" | jq -r '.children[]?.uri // empty' | head -20
+          
+          # Test direct evidence creation to isolate the issue
+          echo "🚀 Testing direct evidence creation with explicit repository:"
+          
+          # Source the evidence library to get the function
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          
+          # Create a simple debug evidence file
+          cat > debug-config-evidence.json << 'EOF'
+          {
+            "predicateType": "https://in-toto.io/Statement/v0.1",
+            "predicate": {
+              "package_name": "recommendation-config",
+              "validation_status": "DEBUG_TEST",
+              "repository_check": "investigating package lookup issue"
+            }
+          }
+          EOF
+          
+          echo "📋 Testing with current repository logic..."
+          export PACKAGE_NAME="recommendation-config"
+          export PACKAGE_VERSION="$CONFIG_VERSION"
+          export ATTACH_TO_PACKAGE="true"
+          
+          # Show what repository the evidence function would use
+          echo "🔍 Repository that evidence function would use:"
+          if [[ "${PACKAGE_NAME:-}" =~ ^(config|resources|recommendation-config|recommendations-config)$ ]]; then
+            echo "  → Generic: ${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-generic-nonprod-local"
+          else
+            echo "  → Docker: ${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
+          fi
+          
+          echo "✅ DEBUG: Package evidence investigation completed"
+
       - name: "[Artifacts] Resources"
         run: |
           set -euo pipefail
