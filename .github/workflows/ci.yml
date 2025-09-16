@@ -354,17 +354,22 @@ jobs:
           set -euo pipefail
           mkdir -p dist/config
           
-          # Generate recommendation configuration artifact
+          # Generate recommendation configuration artifact package
           cp config/recommendations-settings.yaml dist/config/recommendations-settings.yaml
+          
+          # Create tar.gz package (following inventory service pattern)
+          cd dist/config
+          tar -czf "recommendations-config-$CONFIG_VERSION.tar.gz" recommendations-settings.yaml
+          cd ../..
           
           # Use individual package version for recommendation-config
           echo "Using recommendation-config package version: $CONFIG_VERSION"
           
-          # Upload to generic repository
+          # Upload packaged artifact to generic repository
           GENERIC_REPO="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-generic-nonprod-local"
-          jf rt upload "dist/config/recommendations-settings.yaml" "$GENERIC_REPO/$SERVICE_NAME/config/$CONFIG_VERSION/recommendations-settings.yaml" \
+          jf rt upload "dist/config/recommendations-config-$CONFIG_VERSION.tar.gz" "$GENERIC_REPO/$SERVICE_NAME/config/$CONFIG_VERSION/recommendations-config-$CONFIG_VERSION.tar.gz" \
             --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
-          echo "✅ Recommendation config artifact uploaded with version $CONFIG_VERSION"
+          echo "✅ Recommendation config package uploaded with version $CONFIG_VERSION"
 
       - name: "[Evidence] Config Package Evidence"
         env:
@@ -390,17 +395,22 @@ jobs:
           set -euo pipefail
           mkdir -p dist/resources
           
-          # Generate resources artifact (stopwords and other ML resources)
+          # Generate resources artifact package (stopwords and other ML resources)
           cp resources/stopwords.txt dist/resources/stopwords.txt
+          
+          # Create tar.gz package (following inventory service pattern)
+          cd dist/resources
+          tar -czf "recommendations-resources-$RESOURCES_VERSION.tar.gz" stopwords.txt
+          cd ../..
           
           # Use individual package version for resources
           echo "Using resources package version: $RESOURCES_VERSION"
           
-          # Upload to generic repository
+          # Upload packaged artifact to generic repository
           GENERIC_REPO="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-generic-nonprod-local"
-          jf rt upload "dist/resources/stopwords.txt" "$GENERIC_REPO/$SERVICE_NAME/resources/$RESOURCES_VERSION/stopwords.txt" \
+          jf rt upload "dist/resources/recommendations-resources-$RESOURCES_VERSION.tar.gz" "$GENERIC_REPO/$SERVICE_NAME/resources/$RESOURCES_VERSION/recommendations-resources-$RESOURCES_VERSION.tar.gz" \
             --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
-          echo "✅ Resources artifact uploaded with version $RESOURCES_VERSION"
+          echo "✅ Resources package uploaded with version $RESOURCES_VERSION"
 
       - name: "[Evidence] Resources Package Evidence"
         env:
@@ -466,13 +476,49 @@ jobs:
 
       - name: "[Build Info] Publish"
         run: |
-          # Docker images are already included in build-info from jf docker build commands
-          # No additional processing needed - Docker images are standalone artifacts
-          echo "🔗 Build-info already contains Docker images from jf docker build commands"
-          echo "✅ Main image: $IMAGE_NAME (included via jf docker build)"
-          echo "✅ Worker image: $WORKER_IMAGE (included via jf docker build)" 
-          echo "ℹ️ Docker images in JFrog are standalone artifacts without dependencies"
+          # Associate the pushed Docker images with the build-info before publishing
+          # This is critical for proper build info content - Docker images must be explicitly associated
+          REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
+          echo "🔗 Adding docker images to build-info: main=$IMAGE_NAME worker=$WORKER_IMAGE repo=$REPO_KEY"
           
+          # Create images file with both Docker images
+          echo "📋 Resolving image digests and creating build-docker associations..."
+          
+          # Resolve main image digest
+          MAIN_DIGEST=$(docker inspect "$IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          if [[ -z "$MAIN_DIGEST" || "$MAIN_DIGEST" == "<no value>" ]]; then
+            docker pull "$IMAGE_NAME" >/dev/null 2>&1 || true
+            MAIN_DIGEST=$(docker inspect "$IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          fi
+          if [[ -z "$MAIN_DIGEST" || "$MAIN_DIGEST" == "<no value>" ]]; then
+            echo "❌ Could not resolve image digest for $IMAGE_NAME" >&2; exit 1
+          fi
+          
+          # Resolve worker image digest
+          WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
+            docker pull "$WORKER_IMAGE" >/dev/null 2>&1 || true
+            WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          fi
+          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
+            echo "❌ Could not resolve image digest for $WORKER_IMAGE" >&2; exit 1
+          fi
+          
+          # Create images file with both images and their digests
+          echo "${IMAGE_NAME%@*}@${MAIN_DIGEST}" > images.txt
+          echo "${WORKER_IMAGE%@*}@${WORKER_DIGEST}" >> images.txt
+          
+          echo "📋 Images to associate with build info:"
+          cat images.txt
+          
+          # Associate Docker images with build info (critical step that was missing)
+          jf rt build-docker-create "$REPO_KEY" \
+            --image-file images.txt \
+            --build-name "$BUILD_NAME" \
+            --build-number "$BUILD_NUMBER" \
+            --project "${{ vars.PROJECT_KEY }}"
+          
+          echo "✅ Docker images associated with build info"
           
           jf rt bag --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
           jf rt bce --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
