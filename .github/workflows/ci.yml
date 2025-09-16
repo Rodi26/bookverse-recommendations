@@ -505,9 +505,11 @@ jobs:
           fi
           
           # Create images file with proper format: image-tag@sha256:digest (one per line)
-          # Remove any existing @digest from image names and add the resolved digest
-          echo "${IMAGE_NAME%@*}@${MAIN_DIGEST}" > images.txt
-          echo "${WORKER_IMAGE%@*}@${WORKER_DIGEST}" >> images.txt
+          # Extract just the image tag (without registry/repo path) and add digest
+          MAIN_TAG=$(echo "$IMAGE_NAME" | awk -F'/' '{print $NF}' | cut -d'@' -f1)
+          WORKER_TAG=$(echo "$WORKER_IMAGE" | awk -F'/' '{print $NF}' | cut -d'@' -f1)
+          echo "${MAIN_TAG}@${MAIN_DIGEST}" > images.txt
+          echo "${WORKER_TAG}@${WORKER_DIGEST}" >> images.txt
           
           echo "📋 Images to associate with build info (corrected format):"
           cat images.txt
