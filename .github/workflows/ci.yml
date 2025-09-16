@@ -614,11 +614,44 @@ jobs:
           
           # Test JFrog CLI authentication first
           echo "🔍 Testing JFrog CLI authentication..."
+          echo "🔍 JFrog CLI config info:"
+          jf config show || echo "❌ Failed to show JFrog CLI config"
+          
+          echo "🔍 Testing basic connectivity..."
           if jf rt ping; then
             echo "✅ JFrog CLI authentication is working"
           else
             echo "❌ JFrog CLI authentication failed"
+            exit_code=$?
+            echo "❌ jf rt ping failed with exit code: $exit_code"
           fi
+          
+          # Test if we can access build info specifically
+          echo "🔍 Testing build info access..."
+          echo "🔍 Checking if build info exists: ${BUILD_NAME} ${BUILD_NUMBER}"
+          
+          # Try to get build info without project first
+          echo "🔍 Testing build info access (no project param)..."
+          jf rt curl "/api/build/${BUILD_NAME}/${BUILD_NUMBER}" || {
+            echo "❌ Failed to access build info without project param"
+          }
+          
+          # Try with project parameter
+          echo "🔍 Testing build info access (with project)..."
+          jf rt curl "/api/build/${BUILD_NAME}/${BUILD_NUMBER}?project=${{ vars.PROJECT_KEY }}" || {
+            echo "❌ Failed to access build info with project param"
+            echo "🔍 This might explain the 401 in evidence command"
+          }
+          
+          # List recent builds to see what's available
+          echo "🔍 Listing recent builds..."
+          jf rt curl "/api/build" || echo "❌ Failed to list builds"
+          
+          # Show authentication context
+          echo "🔍 Authentication context:"
+          echo "  JF_OIDC_TOKEN present: ${JF_OIDC_TOKEN:+YES}"
+          echo "  JF_ACCESS_TOKEN present: ${JF_ACCESS_TOKEN:+YES}"
+          echo "  EVIDENCE_PRIVATE_KEY present: ${EVIDENCE_PRIVATE_KEY:+YES}"
           
           # Direct JFrog CLI command - match library approach exactly
           echo "🚀 Executing direct jf evd create-evidence command (matching library approach)..."
