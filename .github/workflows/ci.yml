@@ -768,7 +768,7 @@ jobs:
           echo "✅ Application version evidence attached: slsa-provenance, jira-release"
 
 
-      - name: "[DEBUG] AppTrust CLI Permissions Test"
+      - name: "[DEBUG] Release Bundle Creation and Evidence Test"
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
         run: |
