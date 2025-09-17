@@ -17,7 +17,7 @@ from fastapi import FastAPI
 
 # Import bookverse-core app factory, configuration, logging, middleware, and health
 from bookverse_core.api.app_factory import create_app
-from bookverse_core.api.middleware import RequestIDMiddleware, RequestLoggingMiddleware
+from bookverse_core.api.middleware import RequestIDMiddleware, LoggingMiddleware
 from bookverse_core.api.health import create_health_router
 from bookverse_core.config import BaseConfig
 from bookverse_core.utils.logging import (
@@ -81,9 +81,9 @@ app = create_app(
 
 # Add bookverse-core middleware for enhanced request tracing and logging
 app.add_middleware(RequestIDMiddleware, header_name="X-Request-ID")
-app.add_middleware(RequestLoggingMiddleware, 
-                  log_level="INFO", 
-                  include_headers=False,
+app.add_middleware(LoggingMiddleware, 
+                  log_requests=True,
+                  log_responses=True,
                   log_request_body=False,
                   log_response_body=False)
 
@@ -187,4 +187,14 @@ logger.info("✅ Standardized health endpoints added: /health/live, /health/read
 
 # Note: Health endpoints (/health, /health/live, /health/ready) are automatically 
 # added by the bookverse-core app factory, no need to define them manually!
+
+
+def main():
+    """Main entry point for the package script"""
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()
 
