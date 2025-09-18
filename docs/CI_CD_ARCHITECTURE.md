@@ -546,11 +546,10 @@ inputs:
 
 ## 📚 Additional Resources
 
-- [Service Architecture Overview](./OVERVIEW.md)
-- [API Documentation](./API.md)
-- [Deployment Guide](./DEPLOYMENT.md)
-- [Algorithm Documentation](./ALGORITHM.md)
-- [CI/CD Implementation Plan](./CI_CD_PLAN.md)
+- [📖 Complete Service Guide](./SERVICE_GUIDE.md) - Comprehensive service documentation
+- [📋 Workflow Reference](./WORKFLOW_REFERENCE.md) - Detailed workflow steps and troubleshooting
+- [🔧 Troubleshooting Guide](./TROUBLESHOOTING.md) - Common issues and solutions
+- [🚀 CI/CD Overview](./CI_CD.md) - Quick pipeline overview
 
 ---
 

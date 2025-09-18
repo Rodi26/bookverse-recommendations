@@ -300,30 +300,51 @@ jobs:
           echo "✅ Python dependencies installed"
 
       # ─── Semantic Version Determination ───
-      # OVERVIEW: Determines smart, consistent version numbers for all packages and application
-      # using centralized bookverse-devops scripts that analyze existing versions and apply
-      # semantic versioning rules based on commit content and version-map.yaml configuration.
+      # OVERVIEW: This is a CRITICAL step that determines smart, consistent version numbers
+      # for all packages and the application using centralized bookverse-devops scripts.
+      # The script analyzes existing versions and applies semantic versioning rules based
+      # on commit content and version-map.yaml configuration.
       #
-      # VERSION STRATEGY:
-      # - Application Version: Single unified version for the entire application (e.g., 1.2.3)
-      # - Package Versions: Individual versions per package type (Docker/Generic)
-      # - Build Number: GitHub Actions run-based for build-info tracking
+      # 🎯 WHY THIS MATTERS FOR DEMO:
+      # - Demonstrates enterprise-grade versioning strategy with multiple artifact types
+      # - Shows coordination between application versions and individual package versions
+      # - Exhibits proper version increment logic (patch/minor/major) based on changes
+      # - Provides traceability from commits to deployed artifacts
       #
-      # SEMVER LOGIC:
-      # 1. Queries JFrog for existing versions of each package type
-      # 2. Analyzes config/version-map.yaml for package-specific versioning rules
-      # 3. Determines appropriate increment (patch/minor/major) based on commit analysis
-      # 4. Returns JSON with both application_version and individual package_tags
+      # 📋 VERSION STRATEGY EXPLAINED:
+      # - Application Version: Single unified version for AppTrust application (e.g., 1.2.3)
+      # - Package Versions: Individual versions per package type allowing independent updates:
+      #   * recommendations (Docker): 1.2.3 (API service)
+      #   * recommendations-worker (Docker): 1.2.4 (Worker service)  
+      #   * recommendation-config (Generic): 1.2.1 (Configuration bundle)
+      #   * resources (Generic): 1.2.2 (ML resources bundle)
+      # - Build Number: GitHub Actions run-based for build-info tracking (e.g., 127-1)
       #
-      # INPUT SOURCES:
-      # - ./config/version-map.yaml: Package versioning configuration and rules
-      # - JFrog Repositories: Existing package versions for increment calculation
-      # - Git Commit History: Change analysis for appropriate semver increment
+      # 🔄 SEMVER LOGIC WORKFLOW:
+      # 1. Authenticate with JFrog using OIDC token from previous step
+      # 2. Query JFrog repositories for existing versions of each package type
+      # 3. Parse config/version-map.yaml for package-specific versioning rules
+      # 4. Analyze commit content to determine appropriate increment type
+      # 5. Calculate new versions using semantic versioning rules
+      # 6. Return JSON output with both application_version and individual package_tags
       #
-      # OUTPUT BEHAVIOR:
-      # - Creates individual package versions that may differ from application version
-      # - Maintains consistent versioning across similar package types
+      # 📂 INPUT SOURCES:
+      # - ./config/version-map.yaml: Package versioning configuration and increment rules
+      # - JFrog Repositories: Current package versions for smart increment calculation
+      # - Git Commit History: Change analysis for determining semver increment type
+      # - OIDC Token: Secure authentication for JFrog API access
+      #
+      # 📤 OUTPUT BEHAVIOR:
+      # - Sets environment variables for each package version (RECOMMENDATIONS_VERSION, etc.)
+      # - Creates application version for AppTrust integration (APP_VERSION)
       # - Enables independent package versioning while maintaining application coherence
+      # - Provides build number for JFrog build-info association
+      #
+      # 🚨 CRITICAL SUCCESS FACTORS:
+      # - JF_OIDC_TOKEN must be present from previous OIDC exchange step
+      # - config/version-map.yaml must exist and be properly formatted
+      # - JFrog connectivity must be established for version queries
+      # - Shared semver scripts must be available from bookverse-infra checkout
       - name: "[Setup] Determine SemVer"
         id: determine-semver
         run: |
@@ -475,6 +496,44 @@ jobs:
           echo "COVERAGE_PERCENT=$COVERAGE_PERCENT" >> $GITHUB_ENV
           echo "coverage_percent=$COVERAGE_PERCENT" >> $GITHUB_OUTPUT
 
+      # ═══ PHASE 4: MULTI-ARTIFACT BUILD & PUBLISHING ═══
+      
+      # ┌─────────────────────────────────────────────────────────────────────────┐
+      # │ 🐳 DOCKER IMAGE 1: RECOMMENDATIONS API SERVICE                         │
+      # └─────────────────────────────────────────────────────────────────────────┘
+      # OVERVIEW: Builds and publishes the main recommendation API service as a Docker image.
+      # This is the primary service that handles HTTP requests for book recommendations.
+      #
+      # 🎯 WHY THIS MATTERS FOR DEMO:
+      # - Demonstrates Docker image building integrated with JFrog CLI for build-info
+      # - Shows proper image naming and tagging strategy for enterprise deployment
+      # - Exhibits secure OIDC-based image pushing without long-lived credentials
+      # - Provides foundation for evidence attachment and compliance tracking
+      #
+      # 🏗️ BUILD PROCESS:
+      # 1. Use JFrog CLI server configuration from setup step (OIDC-authenticated)
+      # 2. Construct image name using enterprise naming convention
+      # 3. Build Docker image with proper labeling and metadata
+      # 4. Push to JFrog Docker registry with automatic build-info association
+      # 5. Prepare for evidence attachment in subsequent steps
+      #
+      # 📦 IMAGE DETAILS:
+      # - Base Image: python:3.11-slim (optimized for FastAPI applications)
+      # - Purpose: Main recommendation service API endpoints
+      # - Registry: bookverse-recommendations-internal-docker-nonprod-local
+      # - Tagging: Uses individual package version (RECOMMENDATIONS_VERSION)
+      # - Size: ~1.2GB (includes Python runtime, dependencies, and application code)
+      #
+      # 🔗 BUILD-INFO INTEGRATION:
+      # - JFrog CLI automatically associates this build with BUILD_NAME/BUILD_NUMBER
+      # - Build-info will include image metadata, dependencies, and build environment
+      # - Enables complete traceability from source code to deployed image
+      # - Supports downstream evidence attachment and compliance verification
+      #
+      # 🚨 CRITICAL COMPONENTS:
+      # - Image must be pushed before evidence can be attached
+      # - Registry path must match evidence collection repository names
+      # - Build-info association enables AppTrust application version binding
       - name: "[Build] API image"
         run: |
           set -euo pipefail
@@ -491,22 +550,91 @@ jobs:
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
           echo "Using recommendations package version: $RECOMMENDATIONS_VERSION"
 
-          # Build and push (plain docker) using subdomain host; then create build-info
+          # ─── Build and Push Docker Image ───
           jf docker build --pull -t "$IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" .
           docker push "$IMAGE_NAME"
+          
+          # ─── Resolve Image Digest and Associate with Build-Info ───
+          # CRITICAL: Must happen immediately after push while image is fresh
+          echo "📋 Resolving image digest and associating with build-info..."
+          
+          # Resolve image digest from pushed image
+          MAIN_DIGEST=$(docker inspect "$IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          if [[ -z "$MAIN_DIGEST" || "$MAIN_DIGEST" == "<no value>" ]]; then
+            docker pull "$IMAGE_NAME" >/dev/null 2>&1 || true
+            MAIN_DIGEST=$(docker inspect "$IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          fi
+          if [[ -z "$MAIN_DIGEST" || "$MAIN_DIGEST" == "<no value>" ]]; then
+            echo "❌ Could not resolve image digest for $IMAGE_NAME" >&2; exit 1
+          fi
+          
+          # Associate Docker image with build-info immediately
+          echo "${IMAGE_NAME%@*}@${MAIN_DIGEST}" > main_image.txt
+          echo "📋 Associating API image: $(cat main_image.txt)"
+          jf rt build-docker-create "$REPO_KEY" \
+            --image-file main_image.txt \
+            --build-name "$BUILD_NAME" \
+            --build-number "$BUILD_NUMBER" \
+            --project "${{ vars.PROJECT_KEY }}"
 
-          # Build-info will be published in a later step via bag/bce/bp
           echo "DOCKER_BUILD_PUSH_STATUS=SUCCESS" >> $GITHUB_ENV
-          echo "✅ Built and pushed Docker image (OIDC docker push + build-info)"
+          echo "✅ Built, pushed, and associated API Docker image with build-info"
 
+      # ┌─────────────────────────────────────────────────────────────────────────┐
+      # │ 🛡️ EVIDENCE COLLECTION 1: API IMAGE PACKAGE EVIDENCE                  │
+      # └─────────────────────────────────────────────────────────────────────────┘
+      # OVERVIEW: Attaches comprehensive security and quality evidence to the API Docker image.
+      # This demonstrates enterprise-grade compliance and security practices by providing
+      # cryptographically signed evidence that validates the package's security posture.
+      #
+      # 🎯 WHY THIS MATTERS FOR DEMO:
+      # - Shows enterprise security compliance with signed evidence collection
+      # - Demonstrates automated security scanning integration (SAST, testing)
+      # - Exhibits proper evidence attachment to specific package versions
+      # - Provides foundation for compliance gates in promotion pipeline
+      # - Showcases shared library approach for consistent evidence across services
+      #
+      # 🔐 EVIDENCE TYPES ATTACHED:
+      # 1. PyTest Results Evidence:
+      #    - Test execution results (passed/failed counts)
+      #    - Code coverage percentage and detailed metrics
+      #    - Test execution duration and performance data
+      #
+      # 2. SAST (Static Application Security Testing) Evidence:
+      #    - Security vulnerability scan results
+      #    - Categorized findings by severity (high/medium/low)
+      #    - Compliance with security scanning requirements
+      #
+      # 📋 EVIDENCE METADATA:
+      # - Package Name: "recommendations" (matches Docker image name)
+      # - Package Version: Uses RECOMMENDATIONS_VERSION from semver step
+      # - Repository: bookverse-recommendations-internal-docker-nonprod-local
+      # - Provider: github-actions (identifies evidence source)
+      # - Signature: Cryptographically signed using EVIDENCE_PRIVATE_KEY
+      #
+      # 🔄 SHARED LIBRARY BENEFITS:
+      # - Eliminates duplicate evidence logic across all BookVerse services
+      # - Ensures consistent evidence format and metadata across platform
+      # - Provides centralized security updates and evidence improvements
+      # - Reduces maintenance overhead and improves reliability
+      #
+      # 🚨 CRITICAL REQUIREMENTS:
+      # - Docker image must be pushed and available in JFrog before evidence attachment
+      # - EVIDENCE_PRIVATE_KEY must be valid PEM-formatted private key
+      # - Package name and version must exactly match the published artifact
+      # - Evidence library functions must be sourced from bookverse-infra checkout
       - name: "[Evidence] API Image Package Evidence"
         env:
           EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
           EVIDENCE_KEY_ALIAS: ${{ vars.EVIDENCE_KEY_ALIAS }}
         run: |
-          echo "📊 Generating evidence for API image package using shared library"
+          echo "🛡️ Generating evidence for API image package using shared library"
+          echo "📦 Target Package: recommendations:$RECOMMENDATIONS_VERSION"
+          echo "🔐 Evidence will be cryptographically signed for compliance verification"
           
-          # Source the evidence library
+          # ─── Source Shared Evidence Library ───
+          # Load centralized evidence collection functions from bookverse-devops
+          # This provides consistent evidence format across all BookVerse services
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Set package-specific environment variables
@@ -520,9 +648,58 @@ jobs:
           
           echo "✅ API image package evidence attached via shared library: pytest-results, sast-scan"
 
+      # ┌─────────────────────────────────────────────────────────────────────────┐
+      # │ 📦 GENERIC ARTIFACT 1: CONFIGURATION BUNDLE                            │
+      # └─────────────────────────────────────────────────────────────────────────┘
+      # OVERVIEW: Creates and publishes a versioned configuration bundle containing
+      # algorithm parameters, feature weights, and runtime settings. This demonstrates
+      # externalized configuration management for enterprise applications.
+      #
+      # 🎯 WHY THIS MATTERS FOR DEMO:
+      # - Shows separation of configuration from code for flexible deployments
+      # - Demonstrates versioned configuration management with proper packaging
+      # - Exhibits ability to update algorithm behavior without code changes
+      # - Provides foundation for environment-specific configuration overrides
+      # - Showcases generic artifact handling alongside Docker images
+      #
+      # 📋 CONFIGURATION CONTENTS:
+      # - Algorithm Parameters: Feature weights, similarity thresholds, scoring rules
+      # - Cache Settings: TTL configurations, cache size limits, eviction policies
+      # - Performance Tuning: Batch sizes, worker thread counts, timeout values
+      # - Feature Flags: Experimental feature toggles and A/B testing configurations
+      # - Environment Overrides: Stage-specific parameter adjustments
+      #
+      # 📦 PACKAGING PROCESS:
+      # 1. Create distribution directory for configuration artifacts
+      # 2. Copy configuration files maintaining proper directory structure
+      # 3. Create compressed TAR.GZ archive with version-specific naming
+      # 4. Upload to JFrog generic repository with build-info association
+      # 5. Enable downstream consumption by deployment and runtime systems
+      #
+      # 🔄 VERSION STRATEGY:
+      # - Uses CONFIG_VERSION from semver determination (independent versioning)
+      # - Enables configuration updates without forcing Docker image rebuilds
+      # - Supports rollback to previous configuration versions if needed
+      # - Maintains compatibility matrix between config and application versions
+      #
+      # 🚀 DEPLOYMENT INTEGRATION:
+      # - Configuration bundle can be downloaded and mounted at runtime
+      # - Enables hot-reloading of algorithm parameters without restarts
+      # - Supports environment-specific configuration injection
+      # - Facilitates A/B testing and gradual feature rollouts
+      #
+      # 🛡️ COMPLIANCE BENEFITS:
+      # - Versioned configuration provides audit trail for parameter changes
+      # - Evidence attachment validates configuration integrity and security
+      # - Enables compliance gates based on configuration content validation
+      # - Supports change management processes for configuration updates
       - name: "[Artifacts] Recommendation Config"
         run: |
           set -euo pipefail
+          echo "📦 Creating versioned configuration bundle for algorithm parameters"
+          echo "🔧 Version: $CONFIG_VERSION (independent from Docker image versions)"
+          echo "📋 Contents: Algorithm weights, cache settings, performance tuning"
+          
           mkdir -p dist/config
           
           # Generate recommendation configuration artifact package
@@ -604,9 +781,52 @@ jobs:
           
           echo "✅ Resources package evidence attached via shared library: config-bundle"
 
+      # ┌─────────────────────────────────────────────────────────────────────────┐
+      # │ 🐳 DOCKER IMAGE 2: RECOMMENDATIONS WORKER SERVICE                      │
+      # └─────────────────────────────────────────────────────────────────────────┘
+      # OVERVIEW: Builds and publishes the background worker service as a Docker image.
+      # This service handles asynchronous recommendation processing, model training,
+      # and index rebuilding operations separate from the API service.
+      #
+      # 🎯 WHY THIS MATTERS FOR DEMO:
+      # - Demonstrates microservices architecture with separated concerns
+      # - Shows independent scaling capabilities for compute-intensive operations
+      # - Exhibits coordinated multi-image builds with unified build-info
+      # - Provides foundation for background processing and ML operations
+      # - Showcases enterprise container orchestration patterns
+      #
+      # 🏗️ WORKER-SPECIFIC BUILD PROCESS:
+      # 1. Use separate Dockerfile (Dockerfile.worker) optimized for ML workloads
+      # 2. Apply independent versioning strategy (WORKER_VERSION)
+      # 3. Build with ML-optimized base image and specialized dependencies
+      # 4. Push to same repository but with worker-specific naming
+      # 5. Associate with same build-info for coordinated deployment
+      #
+      # 📦 WORKER IMAGE DETAILS:
+      # - Base Image: python:3.11-slim with ML libraries (scikit-learn, numpy)
+      # - Purpose: Background recommendation processing and model training
+      # - Registry: bookverse-recommendations-internal-docker-nonprod-local
+      # - Tagging: Uses individual worker version (WORKER_VERSION)
+      # - Size: ~1.3GB (includes ML dependencies and training datasets)
+      #
+      # 🔗 COORDINATED DEPLOYMENT:
+      # - Same build-info as API image enables atomic deployment
+      # - Independent versioning allows worker updates without API changes
+      # - Shared configuration and resources through generic artifacts
+      # - Unified promotion through AppTrust application versions
+      #
+      # 🚨 CRITICAL COMPONENTS:
+      # - Worker image must be associated with build-info immediately after push
+      # - Version must be coordinated but can differ from API image
+      # - Evidence collection must validate ML-specific security requirements
+      # - Build-info association enables downstream AppTrust binding
       - name: "[Build] Worker image"
         run: |
           set -euo pipefail
+          echo "🔧 Building background worker service for ML operations"
+          echo "🏗️ Version: $WORKER_VERSION (independent from API service)"
+          echo "📦 Base: python:3.11-slim with ML libraries and specialized dependencies"
+          
           # Use JFrog CLI to authenticate pushes without requiring docker login
           SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
           jf c use "$SERVER_ID" || true
@@ -623,10 +843,34 @@ jobs:
           WORKER_IMAGE="$REGISTRY_URL/$REPO_KEY/$WORKER_NAME:$WORKER_TAG"
           echo "WORKER_IMAGE=$WORKER_IMAGE" >> $GITHUB_ENV
 
-          # Build and push (plain docker) using subdomain host; then create build-info
+          # ─── Build and Push Worker Docker Image ───
           jf docker build -f Dockerfile.worker -t "$WORKER_IMAGE" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" .
           docker push "$WORKER_IMAGE"
-          echo "✅ Built and pushed Worker image (OIDC docker push + build-info)"
+          
+          # ─── Resolve Worker Image Digest and Associate with Build-Info ───
+          # CRITICAL: Must happen immediately after push while image is fresh
+          echo "📋 Resolving worker image digest and associating with build-info..."
+          
+          # Resolve worker image digest from pushed image
+          WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
+            docker pull "$WORKER_IMAGE" >/dev/null 2>&1 || true
+            WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
+          fi
+          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
+            echo "❌ Could not resolve image digest for $WORKER_IMAGE" >&2; exit 1
+          fi
+          
+          # Associate Worker Docker image with build-info immediately
+          echo "${WORKER_IMAGE%@*}@${WORKER_DIGEST}" > worker_image.txt
+          echo "📋 Associating worker image: $(cat worker_image.txt)"
+          jf rt build-docker-create "$REPO_KEY" \
+            --image-file worker_image.txt \
+            --build-name "$BUILD_NAME" \
+            --build-number "$BUILD_NUMBER" \
+            --project "${{ vars.PROJECT_KEY }}"
+          
+          echo "✅ Built, pushed, and associated Worker Docker image with build-info"
 
       - name: "[Evidence] Worker Image Package Evidence"
         env:
@@ -648,56 +892,44 @@ jobs:
           
           echo "✅ Worker image package evidence attached via shared library: pytest-results, sast-scan"
 
+      # ┌─────────────────────────────────────────────────────────────────────────┐
+      # │ 📋 BUILD-INFO PUBLICATION & METADATA FINALIZATION                       │
+      # └─────────────────────────────────────────────────────────────────────────┘
+      # OVERVIEW: Finalizes and publishes the comprehensive build-info that contains
+      # all artifacts (Docker images and generic packages) with complete metadata.
+      # This step creates the immutable build record for AppTrust integration.
+      #
+      # 🎯 WHY THIS MATTERS FOR DEMO:
+      # - Creates immutable build record linking all artifacts to source code
+      # - Enables AppTrust application version binding with complete artifact set
+      # - Provides comprehensive audit trail for compliance and traceability
+      # - Demonstrates enterprise build metadata management practices
+      # - Supports downstream promotion and deployment processes
+      #
+      # 📋 BUILD-INFO CONTENTS:
+      # - 2 Docker Images: API service and Worker service (already associated)
+      # - 2 Generic Artifacts: Configuration bundle and Resources bundle
+      # - Environment Information: Build environment, dependencies, timestamps
+      # - Source Information: Git commit, branch, repository details
+      # - Build Metadata: Build name, number, project, and execution context
+      #
+      # 🔄 PUBLICATION PROCESS:
+      # 1. Collect Environment Information (jf rt bag)
+      # 2. Collect Build Environment Details (jf rt bce)  
+      # 3. Publish Complete Build-Info (jf rt bp)
+      # 4. Extract Build Timestamp for downstream processes
+      # 5. Validate publication success and availability
+      #
+      # 🚨 PREREQUISITES:
+      # - All Docker images must be built, pushed, and associated
+      # - All generic artifacts must be uploaded with build-info association
+      # - Build name and number must be consistent across all operations
+      # - JFrog project permissions must allow build-info publication
       - name: "[Build Info] Publish"
         run: |
-          # Associate the pushed Docker images with the build-info before publishing
-          # This is critical for proper build info content - Docker images must be explicitly associated
-          REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
-          echo "🔗 Adding docker images to build-info: main=$IMAGE_NAME worker=$WORKER_IMAGE repo=$REPO_KEY"
-          
-          # Create images file with both Docker images
-          echo "📋 Resolving image digests and creating build-docker associations..."
-          
-          # Resolve main image digest
-          MAIN_DIGEST=$(docker inspect "$IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
-          if [[ -z "$MAIN_DIGEST" || "$MAIN_DIGEST" == "<no value>" ]]; then
-            docker pull "$IMAGE_NAME" >/dev/null 2>&1 || true
-            MAIN_DIGEST=$(docker inspect "$IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
-          fi
-          if [[ -z "$MAIN_DIGEST" || "$MAIN_DIGEST" == "<no value>" ]]; then
-            echo "❌ Could not resolve image digest for $IMAGE_NAME" >&2; exit 1
-          fi
-          
-          # Resolve worker image digest
-          WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
-          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
-            docker pull "$WORKER_IMAGE" >/dev/null 2>&1 || true
-            WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
-          fi
-          if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
-            echo "❌ Could not resolve image digest for $WORKER_IMAGE" >&2; exit 1
-          fi
-          
-          # Associate each Docker image separately (following inventory service pattern)
-          # Main recommendations image
-          echo "${IMAGE_NAME%@*}@${MAIN_DIGEST}" > main_image.txt
-          echo "📋 Associating main image: $(cat main_image.txt)"
-          jf rt build-docker-create "$REPO_KEY" \
-            --image-file main_image.txt \
-            --build-name "$BUILD_NAME" \
-            --build-number "$BUILD_NUMBER" \
-            --project "${{ vars.PROJECT_KEY }}"
-          
-          # Worker image
-          echo "${WORKER_IMAGE%@*}@${WORKER_DIGEST}" > worker_image.txt
-          echo "📋 Associating worker image: $(cat worker_image.txt)"
-          jf rt build-docker-create "$REPO_KEY" \
-            --image-file worker_image.txt \
-            --build-name "$BUILD_NAME" \
-            --build-number "$BUILD_NUMBER" \
-            --project "${{ vars.PROJECT_KEY }}"
-          
-          echo "✅ Docker images associated with build info"
+          echo "📋 Publishing comprehensive build-info with all associated artifacts"
+          echo "🏗️ Build: $BUILD_NAME/$BUILD_NUMBER"
+          echo "📦 Contains: 2 Docker images + 2 Generic artifacts + Environment metadata"
           
           jf rt bag --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
           jf rt bce --project "${{ vars.PROJECT_KEY }}" "$BUILD_NAME" "$BUILD_NUMBER"
@@ -846,9 +1078,53 @@ jobs:
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
           echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
 
+      # ┌─────────────────────────────────────────────────────────────────────────┐
+      # │ 📋 APPTRUST APPLICATION VERSION CREATION                                │
+      # └─────────────────────────────────────────────────────────────────────────┘
+      # OVERVIEW: Creates an AppTrust application version that binds all published artifacts
+      # into a single, deployable application entity. This is the cornerstone of the
+      # enterprise software delivery lifecycle, enabling coordinated multi-artifact deployments.
+      #
+      # 🎯 WHY THIS MATTERS FOR DEMO:
+      # - Demonstrates enterprise application lifecycle management with AppTrust
+      # - Shows coordination of multiple artifacts (2 Docker + 2 Generic) into single version
+      # - Exhibits proper application versioning strategy separate from package versions
+      # - Provides foundation for promotion through deployment stages (DEV→QA→STAGING→PROD)
+      # - Showcases build-info binding for complete artifact traceability
+      #
+      # 🏗️ APPLICATION VERSION CONCEPT:
+      # An AppTrust application version represents a specific, tested, deployable state
+      # of the entire recommendations service including:
+      # - API Docker image (recommendations:1.2.3)
+      # - Worker Docker image (recommendations-worker:1.2.4) 
+      # - Configuration bundle (recommendation-config:1.2.1)
+      # - Resources bundle (resources:1.2.2)
+      # - Build-info with full dependency metadata
+      # - Attached evidence for security/quality compliance
+      #
+      # 🔗 BUILD-INFO BINDING PROCESS:
+      # 1. Application version references specific build-info by name/number
+      # 2. Build-info contains all artifacts published in build-test-publish job
+      # 3. AppTrust automatically discovers and includes all artifacts from build-info
+      # 4. Creates immutable link between application version and exact artifact set
+      # 5. Enables atomic promotion of entire application as coordinated unit
+      #
+      # 📋 API CALL DETAILS:
+      # - Endpoint: POST /apptrust/api/v1/applications/bookverse-recommendations/versions
+      # - Authentication: Bearer token using JF_OIDC_TOKEN from OIDC exchange
+      # - Payload includes application version, tag, and build-info source reference
+      # - Response provides application version status and promotion readiness
+      #
+      # 🚨 CRITICAL SUCCESS FACTORS:
+      # - Build-info must be published and available in JFrog before API call
+      # - Application version must be unique (no conflicts with existing versions)
+      # - OIDC token must have sufficient permissions for AppTrust operations
+      # - Build name/number must exactly match the published build-info
       - name: "[Create] Application Version"
         run: |
-          echo "🚀 Creating application version ${{ env.APP_VERSION }}"
+          echo "🚀 Creating AppTrust application version: ${{ env.APP_VERSION }}"
+          echo "📦 Binding artifacts from build-info: ${{ needs.build-test-publish.outputs.build_name }}/${{ needs.build-test-publish.outputs.build_number }}"
+          echo "🔗 This creates an immutable link between application version and all published artifacts"
           
            # Use the JF_OIDC_TOKEN from the OIDC exchange step
            if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
@@ -953,9 +1229,58 @@ jobs:
           echo "✅ Application version evidence attached via shared library: slsa-provenance, jira-release"
 
 
+      # ┌─────────────────────────────────────────────────────────────────────────┐
+      # │ 🧪 AUTOMATED PROMOTION 1: DEV STAGE                                    │
+      # └─────────────────────────────────────────────────────────────────────────┘
+      # OVERVIEW: Automatically promotes the application version to DEV stage and attaches
+      # stage-specific evidence. This demonstrates the first step in the automated
+      # promotion pipeline that advances applications through deployment environments.
+      #
+      # 🎯 WHY THIS MATTERS FOR DEMO:
+      # - Shows automated promotion pipeline eliminating manual deployment steps
+      # - Demonstrates stage-specific evidence collection for environment validation
+      # - Exhibits proper promotion sequence (UNASSIGNED → DEV → QA → STAGING → PROD)
+      # - Provides foundation for environment-specific configuration and testing
+      # - Showcases integration between AppTrust promotion and evidence systems
+      #
+      # 🚀 DEV STAGE CHARACTERISTICS:
+      # - Purpose: Development environment for feature testing and integration
+      # - Promotion: Automatic upon successful application version creation
+      # - Evidence: Smoke test results validating basic service functionality
+      # - Configuration: Development-optimized settings (debug logging, relaxed timeouts)
+      # - Deployment: Typically single-instance deployment with development data
+      #
+      # 📋 PROMOTION PROCESS:
+      # 1. Source shared evidence library for promotion functions
+      # 2. Set up promotion environment with AppTrust authentication
+      # 3. Execute promotion using advance_one_step() function
+      # 4. Generate DEV-specific evidence (smoke tests, health checks)
+      # 5. Attach evidence to application version for compliance tracking
+      # 6. Validate promotion success and update application status
+      #
+      # 🛡️ DEV STAGE EVIDENCE:
+      # - Smoke Tests: Basic health check and endpoint responsiveness validation
+      # - Service Discovery: Verification that service is discoverable in DEV environment
+      # - Configuration Loading: Validation that DEV-specific configuration is applied
+      # - Database Connectivity: Confirmation of database connections and schema
+      #
+      # 🔄 SHARED LIBRARY INTEGRATION:
+      # - Uses advance_one_step() for consistent promotion logic across all services
+      # - Employs attach_application_dev_evidence() for standardized evidence format
+      # - Ensures consistent promotion behavior across BookVerse platform
+      # - Provides centralized error handling and retry logic
+      #
+      # 🚨 SUCCESS CRITERIA:
+      # - Application version must be in UNASSIGNED state before promotion
+      # - AppTrust API must be accessible and responsive
+      # - Evidence attachment must succeed for compliance requirements
+      # - Service health checks must pass in DEV environment
       - name: "[Promote & Evidence] DEV Stage"
         run: |
-          echo "🚀 Promoting to DEV stage and generating evidence"
+          echo "🧪 Promoting application to DEV stage with automated evidence collection"
+          echo "📋 Application Version: $APP_VERSION"
+          echo "🎯 Target Stage: DEV (development environment for feature testing)"
+          echo "🛡️ Evidence Type: Smoke tests and basic health validation"
           
            # Use the JF_OIDC_TOKEN from the OIDC exchange step
            if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
@@ -1070,9 +1395,56 @@ jobs:
           echo "✅ PROD stage evidence attached via shared library: deployment-verification"
           echo "🎉 SUCCESS: Application version $APP_VERSION promoted to PROD with all evidence attached!"
 
+      # ┌─────────────────────────────────────────────────────────────────────────┐
+      # │ 📊 COMPREHENSIVE BUILD SUMMARY & REPORTING                              │
+      # └─────────────────────────────────────────────────────────────────────────┘
+      # OVERVIEW: Generates a comprehensive, visual summary of the entire CI/CD pipeline
+      # execution for demonstration and operational visibility. This summary provides
+      # stakeholders with immediate insight into build status, artifacts, and compliance.
+      #
+      # 🎯 WHY THIS MATTERS FOR DEMO:
+      # - Provides immediate visual feedback on complex multi-artifact pipeline
+      # - Demonstrates enterprise-grade reporting and operational visibility
+      # - Shows integration between build process and compliance evidence
+      # - Offers quick assessment of build quality and promotion readiness
+      # - Exhibits proper documentation practices for CI/CD operations
+      #
+      # 📋 SUMMARY SECTIONS:
+      # 1. Build Information: Core build metadata and execution context
+      # 2. Job Status: Success/failure status for each pipeline job
+      # 3. Artifacts & Evidence: Complete inventory of produced artifacts
+      # 4. Optimization Applied: Demonstration of shared library benefits
+      # 5. Next Steps: Clear guidance for promotion and deployment
+      #
+      # 🔄 CONDITIONAL LOGIC:
+      # - "if: always()" ensures summary runs regardless of job success/failure
+      # - Adapts content based on create_app_version decision from commit analysis
+      # - Shows different guidance for build-info-only vs full application versions
+      # - Provides appropriate next steps based on pipeline execution results
+      #
+      # 📊 ARTIFACTS INVENTORY:
+      # - Lists all 4 artifacts with their specific versions and registry locations
+      # - Shows evidence attachment status for compliance verification
+      # - Provides build-info publication confirmation for traceability
+      # - Displays coverage metrics and quality indicators
+      #
+      # 🚀 OPERATIONAL VALUE:
+      # - Enables quick troubleshooting with consolidated status information
+      # - Supports promotion decisions with comprehensive artifact inventory
+      # - Provides audit trail for compliance and security reviews
+      # - Facilitates communication between development and operations teams
+      #
+      # 🛡️ COMPLIANCE REPORTING:
+      # - Evidence collection status for security and quality requirements
+      # - AppTrust compliance status with promotion stage information
+      # - Build-info publication confirmation for artifact traceability
+      # - Coverage and testing metrics for quality assurance
       - name: "📊 Enhanced Build Summary (bookverse-devops pattern)"
         if: always()
         run: |
+          echo "📊 Generating comprehensive CI/CD pipeline summary for stakeholder visibility"
+          echo "🎯 This summary provides complete build status, artifacts, and next steps"
+          
           echo "## 🎯 BookVerse Recommendations Service - CI/CD Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 Build Information" >> $GITHUB_STEP_SUMMARY

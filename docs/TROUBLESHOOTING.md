@@ -668,10 +668,10 @@ echo "Token length: ${#JF_OIDC_TOKEN}"
 
 ## 📚 Additional Resources
 
-- [CI/CD Architecture Documentation](./CI_CD_ARCHITECTURE.md)
-- [Workflow Reference Guide](./WORKFLOW_REFERENCE.md)
-- [Service API Documentation](./API.md)
-- [Deployment Guide](./DEPLOYMENT.md)
+- [🏗️ CI/CD Architecture](./CI_CD_ARCHITECTURE.md) - Complete system design and architecture
+- [📋 Workflow Reference](./WORKFLOW_REFERENCE.md) - Detailed workflow steps and configuration
+- [📖 Complete Service Guide](./SERVICE_GUIDE.md) - Comprehensive service documentation
+- [🚀 CI/CD Overview](./CI_CD.md) - Quick pipeline overview
 
 ---
 

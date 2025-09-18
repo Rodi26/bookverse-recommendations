@@ -716,11 +716,10 @@ Dockerfile.worker                  # Worker image definition
 
 ## 📚 Related Documentation
 
-- [CI/CD Architecture](./CI_CD_ARCHITECTURE.md) - Detailed system architecture
-- [Service Overview](./OVERVIEW.md) - Service functionality overview
-- [API Documentation](./API.md) - API endpoint documentation  
-- [Deployment Guide](./DEPLOYMENT.md) - Deployment procedures
-- [Algorithm Documentation](./ALGORITHM.md) - Recommendation algorithm details
+- [🏗️ CI/CD Architecture](./CI_CD_ARCHITECTURE.md) - Detailed system architecture
+- [📖 Complete Service Guide](./SERVICE_GUIDE.md) - Comprehensive service documentation
+- [🔧 Troubleshooting Guide](./TROUBLESHOOTING.md) - Common issues and solutions
+- [🚀 CI/CD Overview](./CI_CD.md) - Quick pipeline overview
 
 ---
 
