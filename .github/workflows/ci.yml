@@ -409,23 +409,6 @@ jobs:
 
       - name: "[Evidence] API Image Package Evidence"
         run: |
-          echo "🔍 QUICK DEBUG: Testing key alias resolution"
-          echo "EVIDENCE_KEY_ALIAS from vars: '${{ vars.EVIDENCE_KEY_ALIAS }}'"
-          echo "EVIDENCE_PRIVATE_KEY present: $([ -n '${{ secrets.EVIDENCE_PRIVATE_KEY }}' ] && echo 'YES' || echo 'NO')"
-          
-          echo "🧪 Creating simple test evidence..."
-          echo '{"debug": "key_test", "test_id": "12345"}' > key-test.json
-          jf evd create-evidence \
-            --predicate key-test.json \
-            --predicate-type "https://debug.test/key/v1" \
-            --package-name "debug-key-test" \
-            --package-version "1.0.0" \
-            --package-repo-name "bookverse-recommendations-internal-docker-nonprod-local" \
-            --project "${{ vars.PROJECT_KEY }}" \
-            --provider-id github-actions \
-            --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" \
-            --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}" || echo "❌ Key test failed"
-          
           echo "📊 Generating evidence for API image package"
           
           # Set package-specific environment variables
@@ -496,80 +479,6 @@ jobs:
             --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}" || echo "⚠️ SAST evidence creation failed"
           
           echo "✅ API image package evidence attached: pytest-results, sast-scan"
-
-      - name: "🐛 [DEBUG] Manual Evidence Creation Test"
-        run: |
-          echo "🔍 DEBUGGING EVIDENCE CREATION MANUALLY"
-          echo "======================================"
-          echo ""
-          
-          echo "📋 Current Variable Values:"
-          echo "EVIDENCE_KEY_ALIAS from GitHub vars: '${{ vars.EVIDENCE_KEY_ALIAS }}'"
-          echo "PROJECT_KEY from GitHub vars: '${{ vars.PROJECT_KEY }}'"
-          echo "EVIDENCE_PRIVATE_KEY present: $([ -n '${{ secrets.EVIDENCE_PRIVATE_KEY }}' ] && echo 'YES' || echo 'NO')"
-          echo "RECOMMENDATIONS_VERSION: '$RECOMMENDATIONS_VERSION'"
-          echo ""
-          
-          echo "🔧 JFrog Configuration:"
-          jf config show
-          echo ""
-          
-          echo "🔍 Checking JFrog trusted keys:"
-          KEYS_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
-            "${{ vars.JFROG_URL }}/artifactory/api/security/keys/trusted")
-          echo "Raw response: $KEYS_RESPONSE"
-          echo "$KEYS_RESPONSE" | jq -r 'if .keys then .keys[] | {alias: .alias, kid: .kid, algorithm: .algorithm} else "No keys found or error in response" end' || echo "Failed to parse keys response"
-          echo ""
-          
-          echo "🧪 Creating manual debug evidence with all variables printed:"
-          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          jq -n \
-            --arg timestamp "$TIMESTAMP" \
-            --arg key_alias "${{ vars.EVIDENCE_KEY_ALIAS }}" \
-            --arg project "${{ vars.PROJECT_KEY }}" \
-            '{
-              "@type": "https://debug.manual/test/v1",
-              "predicateType": "https://debug.manual/test/v1",
-              "subject": [{"name": "debug-manual-test", "digest": {"sha256": "debug-123"}}],
-              "predicate": {
-                "debug_type": "manual_evidence_test",
-                "timestamp": $timestamp,
-                "key_alias": $key_alias,
-                "project": $project
-              }
-            }' > debug-manual.json
-          
-          echo "📄 Debug evidence content:"
-          cat debug-manual.json
-          echo ""
-          
-          echo "🚀 Running manual jf evd create-evidence command:"
-          echo "Command: jf evd create-evidence \\"
-          echo "  --predicate debug-manual.json \\"
-          echo "  --predicate-type 'https://debug.manual/test/v1' \\"
-          echo "  --package-name 'debug-manual-test' \\"
-          echo "  --package-version 'debug-123' \\"
-          echo "  --package-repo-name 'bookverse-recommendations-internal-docker-nonprod-local' \\"
-          echo "  --project '${{ vars.PROJECT_KEY }}' \\"
-          echo "  --provider-id github-actions \\"
-          echo "  --key '***PRIVATE_KEY***' \\"
-          echo "  --key-alias '${{ vars.EVIDENCE_KEY_ALIAS }}'"
-          echo ""
-          
-          echo "🎯 Executing command:"
-          jf evd create-evidence \
-            --predicate debug-manual.json \
-            --predicate-type "https://debug.manual/test/v1" \
-            --package-name "debug-manual-test" \
-            --package-version "debug-123" \
-            --package-repo-name "bookverse-recommendations-internal-docker-nonprod-local" \
-            --project "${{ vars.PROJECT_KEY }}" \
-            --provider-id github-actions \
-            --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" \
-            --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}"
-          
-          echo ""
-          echo "✅ Manual debug evidence test completed"
 
       - name: "[Artifacts] Recommendation Config"
         run: |
