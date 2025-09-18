@@ -513,42 +513,24 @@ jobs:
           echo "✅ Recommendation config package uploaded with version $CONFIG_VERSION"
 
       - name: "[Evidence] Config Package Evidence"
+        env:
+          EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
+          EVIDENCE_KEY_ALIAS: ${{ vars.EVIDENCE_KEY_ALIAS }}
         run: |
-          echo "📦 Generating evidence for config package"
+          echo "📦 Generating evidence for config package using shared library"
+          
+          # Source the evidence library
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Set package-specific environment variables  
           export PACKAGE_NAME="recommendations-config-$CONFIG_VERSION.tar.gz"
           export PACKAGE_VERSION="$CONFIG_VERSION"
           
-          # Create config bundle evidence predicate
-          jq -n \
-            --arg name "$PACKAGE_NAME" \
-            --arg version "$PACKAGE_VERSION" \
-            '{
-              "@type": "https://in-toto.io/Statement/v0.1",
-              "predicateType": "https://in-toto.io/Statement/v0.1",
-              "subject": [{"name": $name, "digest": {"sha256": $version}}],
-              "predicate": {
-                "bundle_type": "configuration",
-                "file_count": 8,
-                "validation_status": "passed",
-                "checksum_verified": true
-              }
-            }' > config-bundle.json
-
-          echo "✅ Creating config evidence..."
-          jf evd create-evidence \
-            --predicate config-bundle.json \
-            --predicate-type "https://in-toto.io/Statement/v0.1" \
-            --package-name "$PACKAGE_NAME" \
-            --package-version "$PACKAGE_VERSION" \
-            --package-repo-name "bookverse-recommendations-internal-generic-nonprod-local" \
-            --project "${{ vars.PROJECT_KEY }}" \
-            --provider-id github-actions \
-            --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" \
-            --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}" || echo "⚠️ Config evidence creation failed"
+          # Use shared library function for generic package evidence
+          # This automatically creates config-bundle evidence with proper templates
+          attach_generic_package_evidence "$PACKAGE_NAME" "$PACKAGE_VERSION"
           
-          echo "✅ Config package evidence attached: config-bundle"
+          echo "✅ Config package evidence attached via shared library: config-bundle"
 
       - name: "[Artifacts] Resources"
         run: |
