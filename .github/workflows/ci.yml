@@ -436,33 +436,39 @@ jobs:
           echo "📊 Creating pytest evidence with direct JFrog CLI..."
           
           # Create pytest evidence predicate
-          echo '{
-            "@type": "https://pytest.org/evidence/results/v1",
-            "predicateType": "https://pytest.org/evidence/results/v1",
-            "subject": [{"name": "'"$PACKAGE_NAME"'", "digest": {"sha256": "'"$PACKAGE_VERSION"'"}}],
-            "predicate": {
-              "test_framework": "pytest",
-              "total_tests": 25,
-              "passed_tests": 24,
-              "failed_tests": 1,
-              "coverage_percent": 85.5,
-              "test_duration_seconds": 45
-            }
-          }' > pytest-results.json
+          jq -n \
+            --arg name "$PACKAGE_NAME" \
+            --arg version "$PACKAGE_VERSION" \
+            '{
+              "@type": "https://pytest.org/evidence/results/v1",
+              "predicateType": "https://pytest.org/evidence/results/v1",
+              "subject": [{"name": $name, "digest": {"sha256": $version}}],
+              "predicate": {
+                "test_framework": "pytest",
+                "total_tests": 25,
+                "passed_tests": 24,
+                "failed_tests": 1,
+                "coverage_percent": 85.5,
+                "test_duration_seconds": 45
+              }
+            }' > pytest-results.json
           
           # Create SAST evidence predicate  
-          echo '{
-            "@type": "https://checkmarx.com/evidence/sast/v1.1",
-            "predicateType": "https://checkmarx.com/evidence/sast/v1.1", 
-            "subject": [{"name": "'"$PACKAGE_NAME"'", "digest": {"sha256": "'"$PACKAGE_VERSION"'"}}],
-            "predicate": {
-              "scan_type": "SAST",
-              "total_vulnerabilities": 3,
-              "high_findings": 0,
-              "medium_findings": 1,
-              "low_findings": 2
-            }
-          }' > sast-scan.json
+          jq -n \
+            --arg name "$PACKAGE_NAME" \
+            --arg version "$PACKAGE_VERSION" \
+            '{
+              "@type": "https://checkmarx.com/evidence/sast/v1.1",
+              "predicateType": "https://checkmarx.com/evidence/sast/v1.1", 
+              "subject": [{"name": $name, "digest": {"sha256": $version}}],
+              "predicate": {
+                "scan_type": "SAST",
+                "total_vulnerabilities": 3,
+                "high_findings": 0,
+                "medium_findings": 1,
+                "low_findings": 2
+              }
+            }' > sast-scan.json
 
           # Create evidence using direct JFrog CLI (proven working pattern)
           echo "✅ Creating pytest evidence with direct GitHub variable syntax..."
@@ -515,17 +521,22 @@ jobs:
           echo ""
           
           echo "🧪 Creating manual debug evidence with all variables printed:"
-          echo '{
-            "@type": "https://debug.manual/test/v1",
-            "predicateType": "https://debug.manual/test/v1",
-            "subject": [{"name": "debug-manual-test", "digest": {"sha256": "debug-123"}}],
-            "predicate": {
-              "debug_type": "manual_evidence_test",
-              "timestamp": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'",
-              "key_alias": "${{ vars.EVIDENCE_KEY_ALIAS }}",
-              "project": "${{ vars.PROJECT_KEY }}"
-            }
-          }' > debug-manual.json
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          jq -n \
+            --arg timestamp "$TIMESTAMP" \
+            --arg key_alias "${{ vars.EVIDENCE_KEY_ALIAS }}" \
+            --arg project "${{ vars.PROJECT_KEY }}" \
+            '{
+              "@type": "https://debug.manual/test/v1",
+              "predicateType": "https://debug.manual/test/v1",
+              "subject": [{"name": "debug-manual-test", "digest": {"sha256": "debug-123"}}],
+              "predicate": {
+                "debug_type": "manual_evidence_test",
+                "timestamp": $timestamp,
+                "key_alias": $key_alias,
+                "project": $project
+              }
+            }' > debug-manual.json
           
           echo "📄 Debug evidence content:"
           cat debug-manual.json
@@ -590,17 +601,20 @@ jobs:
           export PACKAGE_VERSION="$CONFIG_VERSION"
           
           # Create config bundle evidence predicate
-          echo '{
-            "@type": "https://in-toto.io/Statement/v0.1",
-            "predicateType": "https://in-toto.io/Statement/v0.1",
-            "subject": [{"name": "'"$PACKAGE_NAME"'", "digest": {"sha256": "'"$PACKAGE_VERSION"'"}}],
-            "predicate": {
-              "bundle_type": "configuration",
-              "file_count": 8,
-              "validation_status": "passed",
-              "checksum_verified": true
-            }
-          }' > config-bundle.json
+          jq -n \
+            --arg name "$PACKAGE_NAME" \
+            --arg version "$PACKAGE_VERSION" \
+            '{
+              "@type": "https://in-toto.io/Statement/v0.1",
+              "predicateType": "https://in-toto.io/Statement/v0.1",
+              "subject": [{"name": $name, "digest": {"sha256": $version}}],
+              "predicate": {
+                "bundle_type": "configuration",
+                "file_count": 8,
+                "validation_status": "passed",
+                "checksum_verified": true
+              }
+            }' > config-bundle.json
 
           # Create evidence using direct JFrog CLI
           echo "✅ Creating config evidence with direct GitHub variable syntax..."
