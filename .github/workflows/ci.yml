@@ -144,9 +144,16 @@ jobs:
   #
   # SECURITY & COMPLIANCE:
   # - Uses OIDC authentication for JFrog (no long-lived tokens)
-  # - Generates and attaches evidence for each artifact type
+  # - Generates and attaches evidence using centralized shared library
   # - Publishes comprehensive build-info for traceability
   # - Implements proper versioning strategy with SemVer
+  #
+  # EVIDENCE ARCHITECTURE:
+  # - Uses bookverse-devops shared evidence library for consistency
+  # - Package Evidence: attach_docker_package_evidence() & attach_generic_package_evidence()
+  # - Build Evidence: attach_build_evidence() for FOSSA & SonarQube
+  # - Application Evidence: attach_application_*_evidence() per stage
+  # - Templates: Centralized in bookverse-infra/libraries/bookverse-devops/evidence/
   #
   # INTEGRATION POINTS:
   # - JFrog Artifactory for artifact storage and metadata
@@ -185,7 +192,8 @@ jobs:
           path: 'bookverse-infra'
 
       # ─── Shared Infrastructure ───
-      # Access to centralized DevOps scripts and evidence collection libraries (already checked out above)
+      # bookverse-infra provides evidence library for centralized evidence creation
+      # Located at: bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
 
       # ─── Pipeline Context Information ───
       # Display key information about the current pipeline execution for debugging
@@ -572,7 +580,7 @@ jobs:
           # Evidence: Config Bundle Verification (resource file validation and integrity)
           attach_generic_package_evidence "$PACKAGE_NAME" "$PACKAGE_VERSION"
           
-          echo "✅ Resources package evidence attached: config-bundle"
+          echo "✅ Resources package evidence attached via shared library: config-bundle"
 
       - name: "[Build] Worker image"
         run: |
@@ -616,7 +624,7 @@ jobs:
           # Evidence: PyTest Results (unit test coverage) + SAST Scan (static security analysis)
           attach_docker_package_evidence "$PACKAGE_NAME" "$PACKAGE_VERSION"
           
-          echo "✅ Worker image package evidence attached: pytest-results, sast-scan"
+          echo "✅ Worker image package evidence attached via shared library: pytest-results, sast-scan"
 
       - name: "[Build Info] Publish"
         run: |
@@ -719,7 +727,7 @@ jobs:
           # Evidence: FOSSA License Scan (dependency license compliance) + SonarQube Quality Gate (code quality analysis)
           attach_build_evidence
           
-          echo "✅ Build evidence attached: fossa-license-scan, sonar-quality-gate"
+          echo "✅ Build evidence attached via shared library: fossa-license-scan, sonar-quality-gate"
 
   create-promote:
     name: "Create Application Version & Promote (Conditional)"
@@ -920,7 +928,7 @@ jobs:
           # Evidence: SLSA Provenance (supply chain security) + Jira Release (release tracking and approval)
           attach_application_unassigned_evidence
           
-          echo "✅ Application version evidence attached: slsa-provenance, jira-release"
+          echo "✅ Application version evidence attached via shared library: slsa-provenance, jira-release"
 
 
       - name: "[Promote & Evidence] DEV Stage"
@@ -950,7 +958,7 @@ jobs:
           # Generate and attach DEV stage evidence
           # Evidence: Smoke Tests (basic health checks in DEV environment)
           attach_application_dev_evidence
-          echo "✅ DEV stage evidence attached: smoke-tests"
+          echo "✅ DEV stage evidence attached via shared library: smoke-tests"
 
       - name: "[Promote & Evidence] QA Stage"
         run: |
@@ -979,7 +987,7 @@ jobs:
           # Generate and attach QA stage evidence
           # Evidence: DAST Scan (dynamic security testing) + API Tests (integration testing)
           attach_application_qa_evidence
-          echo "✅ QA stage evidence attached: dast-scan, api-tests"
+          echo "✅ QA stage evidence attached via shared library: dast-scan, api-tests"
 
       - name: "[Promote & Evidence] STAGING Stage"
         run: |
@@ -1008,7 +1016,7 @@ jobs:
           # Generate and attach STAGING stage evidence
           # Evidence: IaC Scan (infrastructure security) + Pentest (penetration testing) + Change Approval (management approval)
           attach_application_staging_evidence
-          echo "✅ STAGING stage evidence attached: iac-scan, pentest, change-approval"
+          echo "✅ STAGING stage evidence attached via shared library: iac-scan, pentest, change-approval"
 
       - name: "[Promote & Evidence] PROD Stage"
         run: |
@@ -1037,7 +1045,7 @@ jobs:
           # Generate and attach PROD stage evidence
           # Evidence: ArgoCD Deployment Verification (production deployment health and status)
           attach_application_prod_evidence
-          echo "✅ PROD stage evidence attached: deployment-verification"
+          echo "✅ PROD stage evidence attached via shared library: deployment-verification"
           echo "🎉 SUCCESS: Application version $APP_VERSION promoted to PROD with all evidence attached!"
 
       - name: "📊 Enhanced Build Summary (bookverse-devops pattern)"
