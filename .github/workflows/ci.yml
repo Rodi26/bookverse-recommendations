@@ -300,27 +300,48 @@ jobs:
           echo "✅ Python dependencies installed"
 
       # ─── Semantic Version Determination ───
-      # Calculates appropriate version numbers for all artifacts using shared
-      # versioning logic. This ensures consistent versioning across all
-      # BookVerse services and proper version incrementing.
+      # OVERVIEW: Determines smart, consistent version numbers for all packages and application
+      # using centralized bookverse-devops scripts that analyze existing versions and apply
+      # semantic versioning rules based on commit content and version-map.yaml configuration.
+      #
+      # VERSION STRATEGY:
+      # - Application Version: Single unified version for the entire application (e.g., 1.2.3)
+      # - Package Versions: Individual versions per package type (Docker/Generic)
+      # - Build Number: GitHub Actions run-based for build-info tracking
+      #
+      # SEMVER LOGIC:
+      # 1. Queries JFrog for existing versions of each package type
+      # 2. Analyzes config/version-map.yaml for package-specific versioning rules
+      # 3. Determines appropriate increment (patch/minor/major) based on commit analysis
+      # 4. Returns JSON with both application_version and individual package_tags
+      #
+      # INPUT SOURCES:
+      # - ./config/version-map.yaml: Package versioning configuration and rules
+      # - JFrog Repositories: Existing package versions for increment calculation
+      # - Git Commit History: Change analysis for appropriate semver increment
+      #
+      # OUTPUT BEHAVIOR:
+      # - Creates individual package versions that may differ from application version
+      # - Maintains consistent versioning across similar package types
+      # - Enables independent package versioning while maintaining application coherence
       - name: "[Setup] Determine SemVer"
         id: determine-semver
         run: |
           SERVICE_NAME=${SERVICE_NAME:-$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')}
           APPLICATION_KEY="bookverse-$SERVICE_NAME"
           
-          # Use the persisted JF_OIDC_TOKEN from the auth step
+          # ─── Authentication Validation ───
+          # Verify JFrog access token from OIDC exchange is available for repository queries
           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
             echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
             exit 1
           fi
-          
           echo "✅ Using persisted JFrog access token for semver determination"
           
-          # Use shared semver logic from bookverse-infra (proper infrastructure repository)
+          # ─── Shared Script Preparation ───
+          # Copy centralized semver logic from bookverse-infra infrastructure repository
+          # This ensures consistent versioning behavior across all BookVerse services
           echo "📋 Using shared semver logic from bookverse-infra"
-          
-          # Copy shared scripts from bookverse-infra/libraries/bookverse-devops
           INFRA_SCRIPTS_PATH="bookverse-infra/libraries/bookverse-devops/scripts"
           if [[ -f "$INFRA_SCRIPTS_PATH/determine-semver.sh" ]]; then
             cp "$INFRA_SCRIPTS_PATH/determine-semver.sh" .
@@ -332,7 +353,10 @@ jobs:
             exit 1
           fi
           
-          # Use the shared semver determination script for ALL packages
+          # ─── Version Calculation ───
+          # Execute shared semver script with all required parameters for intelligent versioning
+          # Script analyzes existing versions and applies semver rules for each package type
+          echo "🔍 Calculating versions for all packages using shared logic..."
           SEMVER_OUTPUT=$(./determine-semver.sh \
             --application-key "$APPLICATION_KEY" \
             --version-map "./config/version-map.yaml" \
@@ -342,49 +366,47 @@ jobs:
             --packages "recommendations,recommendations-worker,recommendation-config,resources" \
             --verbose)
           
-          # Extract APP_VERSION and individual package versions from the Python script's JSON output
-          # NOTE: Build number uses GitHub Actions convention (BUILD_NUMBER), not Python semver output
+          # ─── JSON Output Parsing ───
+          # Extract application version and individual package versions from shared script output
+          # The script returns JSON with both unified app_version and individual package_tags
           JSON_LINE=$(echo "$SEMVER_OUTPUT" | grep '{"application_key"')
           APP_VERSION=$(echo "$JSON_LINE" | jq -r '.app_version')
           if [[ -z "$APP_VERSION" || "$APP_VERSION" == "null" ]]; then
             echo "❌ Failed to extract APP_VERSION from semver output" >&2
+            echo "📋 Semver output: $SEMVER_OUTPUT" >&2
             exit 1
           fi
           
-          # Extract individual package versions from JSON output
+          # ─── Individual Package Version Extraction ───
+          # Parse package-specific versions from the shared script's JSON response
+          # Each package type may have different version numbers based on its change history
           echo "📋 Extracting individual package versions from JSON output:"
           
-          # Extract package versions from the JSON package_tags field
           RECOMMENDATIONS_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags.recommendations // empty')
           WORKER_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags."recommendations-worker" // empty')
           CONFIG_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags."recommendation-config" // empty')
           RESOURCES_VERSION=$(echo "$JSON_LINE" | jq -r '.package_tags.resources // empty')
           
-          # Validate that all package versions were determined successfully
-          if [[ -z "$RECOMMENDATIONS_VERSION" ]]; then
-            echo "❌ Failed to determine RECOMMENDATIONS_VERSION from semver script" >&2
-            exit 1
-          fi
-          if [[ -z "$WORKER_VERSION" ]]; then
-            echo "❌ Failed to determine WORKER_VERSION from semver script" >&2
-            exit 1
-          fi
-          if [[ -z "$CONFIG_VERSION" ]]; then
-            echo "❌ Failed to determine CONFIG_VERSION from semver script" >&2
-            exit 1
-          fi
-          if [[ -z "$RESOURCES_VERSION" ]]; then
-            echo "❌ Failed to determine RESOURCES_VERSION from semver script" >&2
-            exit 1
-          fi
+          # ─── Version Validation ───
+          # Ensure all required package versions were successfully determined by the shared script
+          for pkg_name in "RECOMMENDATIONS" "WORKER" "CONFIG" "RESOURCES"; do
+            pkg_var="${pkg_name}_VERSION"
+            if [[ -z "${!pkg_var}" ]]; then
+              echo "❌ Failed to determine ${pkg_var} from semver script" >&2
+              echo "📋 Available package_tags: $(echo "$JSON_LINE" | jq -r '.package_tags | keys[]')" >&2
+              exit 1
+            fi
+          done
           
-          # Set all package versions as environment variables
+          # ─── Environment Variable Export ───
+          # Make all determined versions available to subsequent workflow steps
           echo "RECOMMENDATIONS_VERSION=$RECOMMENDATIONS_VERSION" >> $GITHUB_ENV
           echo "WORKER_VERSION=$WORKER_VERSION" >> $GITHUB_ENV
           echo "CONFIG_VERSION=$CONFIG_VERSION" >> $GITHUB_ENV
           echo "RESOURCES_VERSION=$RESOURCES_VERSION" >> $GITHUB_ENV
           
-          # For backward compatibility, set IMAGE_TAG to the main recommendations version
+          # ─── Backward Compatibility ───
+          # Maintain IMAGE_TAG variable for legacy compatibility with existing build steps
           IMAGE_TAG="$RECOMMENDATIONS_VERSION"
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
           
