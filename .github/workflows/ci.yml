@@ -515,9 +515,10 @@ jobs:
           echo ""
           
           echo "🔍 Checking JFrog trusted keys:"
-          curl -s -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
-            "${{ vars.JFROG_URL }}/artifactory/api/security/keys/trusted" | \
-            jq '.keys[] | {alias: .alias, kid: .kid, algorithm: .algorithm}'
+          KEYS_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.JFROG_ADMIN_TOKEN }}" \
+            "${{ vars.JFROG_URL }}/artifactory/api/security/keys/trusted")
+          echo "Raw response: $KEYS_RESPONSE"
+          echo "$KEYS_RESPONSE" | jq -r 'if .keys then .keys[] | {alias: .alias, kid: .kid, algorithm: .algorithm} else "No keys found or error in response" end' || echo "Failed to parse keys response"
           echo ""
           
           echo "🧪 Creating manual debug evidence with all variables printed:"
