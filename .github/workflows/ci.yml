@@ -1,17 +1,50 @@
 name: CI
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🚀 BOOKVERSE RECOMMENDATIONS SERVICE - CI/CD WORKFLOW
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE: Comprehensive CI/CD pipeline for the BookVerse Recommendations service
+# demonstrating enterprise-grade software delivery with AppTrust integration.
+#
+# OVERVIEW:
+# This workflow implements a complete software delivery lifecycle including:
+# - ✅ Multi-artifact build (API image, Worker image, Config, Resources)
+# - ✅ Comprehensive testing with coverage reporting
+# - ✅ Security scanning and evidence collection
+# - ✅ JFrog Artifactory integration with build-info publishing
+# - ✅ AppTrust application version creation and promotion
+# - ✅ Evidence attachment at package and application levels
+# - ✅ Automated promotion through DEV → QA → STAGING → PROD
+#
+# ARCHITECTURE:
+# 1. analyze-commit: Determines if app version should be created (smart filtering)
+# 2. build-test-publish: Builds artifacts, runs tests, publishes to Artifactory
+# 3. create-promote: Creates AppTrust app version and promotes through stages
+#
 # DEMO-READY: Automatic triggers enabled for full CI/CD pipeline demonstration
 # PRODUCTION NOTE: Real systems would have additional branch protection and approval gates
 
-# Concurrency control to prevent race conditions when modifying the same objects
+# ─────────────────────────────────────────────────────────────────────────────
+# 🔒 CONCURRENCY CONTROL
+# ─────────────────────────────────────────────────────────────────────────────
+# Prevents race conditions when multiple runs modify the same JFrog objects
+# (builds, artifacts, application versions) simultaneously
 concurrency:
   group: ci-${{ vars.PROJECT_KEY }}-${{ github.repository }}
   cancel-in-progress: true
+# ─────────────────────────────────────────────────────────────────────────────
+# 🎯 WORKFLOW TRIGGERS
+# ─────────────────────────────────────────────────────────────────────────────
+# Automated triggers for continuous integration and delivery
 on:
+  # 🔄 Automatic triggers for main branch activity
   push:
-    branches: [main]
+    branches: [main]      # Trigger on commits to main branch
   pull_request:
-    branches: [main]
+    branches: [main]      # Trigger on PRs targeting main branch
+  
+  # 🎮 Manual trigger with debugging options
   workflow_dispatch:
     inputs:
       reason:
@@ -25,7 +58,27 @@ on:
         default: true
         type: boolean
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🛠️ JOB DEFINITIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
 jobs:
+  # ┌─────────────────────────────────────────────────────────────────────────┐
+  # │ 🔍 JOB 1: COMMIT ANALYSIS                                               │
+  # └─────────────────────────────────────────────────────────────────────────┘
+  # PURPOSE: Intelligently determines whether to create an AppTrust application
+  # version based on commit content analysis. This prevents unnecessary version
+  # creation for documentation-only changes while ensuring all code changes
+  # trigger the full delivery pipeline.
+  #
+  # DEMO OPTIMIZATION: In demo mode, this job is configured to be permissive
+  # and create application versions for visibility. Production systems would
+  # implement stricter filtering logic.
+  #
+  # OUTPUTS:
+  # - create_app_version: Boolean flag for subsequent job conditional execution
+  # - decision_reason: Human-readable explanation of the decision
+  # - commit_type: Classification of the commit (code, docs, config, etc.)
   analyze-commit:
     name: "Demo: Analyze Commit (Demo-Optimized)"
     runs-on: ubuntu-latest
@@ -34,17 +87,25 @@ jobs:
       decision_reason: ${{ steps.demo-filter.outputs.decision_reason }}
       commit_type: ${{ steps.demo-filter.outputs.commit_type }}
     steps:
+      # ─── Repository Setup ───
       - name: "[Setup] Checkout"
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 2    # Fetch last 2 commits for diff analysis
       
+      # ─── Shared Infrastructure ───
+      # Checkout the bookverse-infra repository containing shared DevOps scripts
+      # and libraries used across all BookVerse services for consistency
       - name: "[Setup] Checkout bookverse-infra for shared scripts"
         uses: actions/checkout@v4
         with:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
           
+      # ─── Intelligent Commit Analysis ───
+      # Uses shared logic from bookverse-devops to determine whether this commit
+      # should trigger application version creation. Analyzes changed files,
+      # commit message patterns, and applies business rules for version creation.
       - name: "[Demo] Commit Analysis (Optimized for Visibility)"
         id: demo-filter
         env:
@@ -57,7 +118,9 @@ jobs:
           echo "🏭 Production note: Real systems would use conservative defaults"
           echo ""
           
-          # Use shared bookverse-devops commit analysis script
+          # ─── Shared Script Execution ───
+          # Use centralized commit analysis logic from bookverse-devops library
+          # This ensures consistent behavior across all BookVerse services
           echo "🔗 Using shared commit analysis script from bookverse-devops"
           echo "📂 Using shared scripts from bookverse-infra repository"
           echo "🔧 Making script executable..."
@@ -66,6 +129,29 @@ jobs:
           bookverse-infra/libraries/bookverse-devops/scripts/analyze-commit.sh
           echo "✅ Commit analysis completed using shared script"
 
+  # ┌─────────────────────────────────────────────────────────────────────────┐
+  # │ 🏗️ JOB 2: BUILD, TEST & PUBLISH                                        │
+  # └─────────────────────────────────────────────────────────────────────────┘
+  # PURPOSE: Core CI/CD pipeline that builds, tests, and publishes all artifacts
+  # for the Recommendations service. This job ALWAYS runs regardless of commit
+  # analysis results to ensure build artifacts are available.
+  #
+  # ARTIFACTS PRODUCED:
+  # 1. 📦 recommendations (Docker image) - Main API service
+  # 2. 🔧 recommendations-worker (Docker image) - Background processing
+  # 3. ⚙️ recommendation-config (Generic artifact) - Configuration bundle
+  # 4. 📚 resources (Generic artifact) - ML model resources and data files
+  #
+  # SECURITY & COMPLIANCE:
+  # - Uses OIDC authentication for JFrog (no long-lived tokens)
+  # - Generates and attaches evidence for each artifact type
+  # - Publishes comprehensive build-info for traceability
+  # - Implements proper versioning strategy with SemVer
+  #
+  # INTEGRATION POINTS:
+  # - JFrog Artifactory for artifact storage and metadata
+  # - AppTrust for evidence collection and compliance
+  # - GitHub Actions for CI/CD orchestration
   build-test-publish:
     name: "Build & Test (Always Runs)"
     needs: analyze-commit
@@ -74,8 +160,8 @@ jobs:
       run:
         shell: bash
     permissions:
-      contents: read
-      id-token: write
+      contents: read      # Read repository contents
+      id-token: write     # Generate OIDC tokens for JFrog authentication
     outputs:
       build_name: ${{ steps.set-build-info.outputs.build_name }}
       build_started_timestamp: ${{ env.BUILD_STARTED_TIMESTAMP }}
@@ -85,15 +171,25 @@ jobs:
       jf_oidc_token: ${{ steps.exchange-oidc.outputs.token }}
 
     steps:
+      # ═══ PHASE 1: ENVIRONMENT SETUP ═══
+      
+      # ─── Repository Setup ───
       - name: "[Setup] Checkout"
         uses: actions/checkout@v4
 
-      - name: "[Setup] Checkout bookverse-infra for shared scripts"
+      - name: "[Setup] Checkout bookverse-infra for evidence library"
         uses: actions/checkout@v4
         with:
-          repository: yonatanp-jfrog/bookverse-infra
-          path: bookverse-infra
+          repository: 'yonatanp-jfrog/bookverse-infra'
+          ref: 'main'
+          path: 'bookverse-infra'
 
+      # ─── Shared Infrastructure ───
+      # Access to centralized DevOps scripts and evidence collection libraries (already checked out above)
+
+      # ─── Pipeline Context Information ───
+      # Display key information about the current pipeline execution for debugging
+      # and audit purposes. Shows results from the commit analysis job.
       - name: "[Info] Trigger Information"
         run: |
           echo "🚀 CI Pipeline: Build & Test Phase"
@@ -103,45 +199,80 @@ jobs:
           echo "👤 Triggered by: ${{ github.actor }}"
           echo "🕐 Timestamp: $(date -u)"
 
+      # ─── Build Metadata Configuration ───
+      # Establishes consistent build naming and numbering strategy across all
+      # artifacts. This ensures proper traceability in JFrog build-info and
+      # AppTrust application versions.
       - name: "[Setup] Build Info"
         id: set-build-info
         run: |
+          # ─── Build Identity ───
+          # Format: <repo>_<workflow>_<job> for unique identification across services
           BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_${{ github.job }}"
+          
+          # ─── Build Numbering ───
+          # Format: <run_number>-<attempt> for retry handling and uniqueness
           BUILD_NUMBER="${{ github.run_number }}-${{ github.run_attempt }}"
+          
+          # ─── Environment Variables ───
+          # Set build coordinates for use in all subsequent steps
           echo "BUILD_NAME=$BUILD_NAME" >> $GITHUB_ENV
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "build_name=$BUILD_NAME" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          
+          # ─── Service Identity ───
+          # Core service identifiers used throughout the pipeline
           echo "SERVICE_NAME=recommendations" >> $GITHUB_ENV
           echo "APPLICATION_KEY=bookverse-recommendations" >> $GITHUB_ENV
 
+      # ═══ PHASE 2: JFROG ARTIFACTORY SETUP ═══
+      
+      # ─── JFrog CLI Installation & Configuration ───
+      # Sets up JFrog CLI with OIDC authentication for secure, token-less access
+      # to Artifactory. This is the foundation for all artifact operations.
       - name: "[Setup] JFrog CLI"
         uses: EyalDelarea/setup-jfrog-cli@swampUpAppTrust
         with:
-          version: latest
-          oidc-provider-name: bookverse-recommendations-github
-          oidc-audience: ${{ vars.JFROG_URL }}
-          disable-job-summary: true
-          disable-auto-build-publish: true
-          disable-auto-evidence-collection: false
+          version: latest                                           # Always use latest CLI features
+          oidc-provider-name: bookverse-recommendations-github     # Service-specific OIDC provider
+          oidc-audience: ${{ vars.JFROG_URL }}                     # JFrog instance URL as audience
+          disable-job-summary: true                                # Prevent automatic summaries
+          disable-auto-build-publish: true                        # Manual build-info control
+          disable-auto-evidence-collection: false                 # Enable evidence collection
         env:
-          JF_URL: ${{ vars.JFROG_URL }}
-          JF_PROJECT: ${{ vars.PROJECT_KEY }}
+          # ─── JFrog Connection Configuration ───
+          JF_URL: ${{ vars.JFROG_URL }}                           # JFrog instance URL
+          JF_PROJECT: ${{ vars.PROJECT_KEY }}                     # Project scope for operations
+          
+          # ─── Build-Info Configuration ───
+          # These variables configure automatic build-info collection for all JFrog CLI operations
           JFROG_CLI_BUILD_NAME: ${{ env.BUILD_NAME }}
           JFROG_CLI_BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
           JFROG_CLI_BUILD_PROJECT: ${{ vars.PROJECT_KEY }}
 
+      # ─── Authentication Verification ───
+      # Validates that JFrog CLI can successfully connect to Artifactory
+      # This step catches authentication issues early in the pipeline
       - name: "[Setup] Verify JFrog Authentication"
         run: |
           echo "🔐 Verifying JFrog CLI authentication and connectivity..."
-          jf rt ping
+          jf rt ping                                               # Test connection to Artifactory
           echo "✅ JFrog authentication successful"
 
+      # ─── OIDC Token Exchange ───
+      # Exchanges GitHub OIDC token for JFrog access token using shared script
+      # This provides secure, short-lived access tokens for API operations
+      # that require direct HTTP calls (not available through JFrog CLI)
       - name: "[Auth] OIDC Token Exchange (bookverse-devops shared script)"
         id: exchange-oidc
         run: |
           echo "🔐 Using bookverse-devops shared OIDC exchange script"
-          # Use shared script to eliminate ~40 lines of duplicate OIDC logic
+          
+          # ─── Shared Script Benefits ───
+          # - Eliminates ~40 lines of duplicate OIDC logic per service
+          # - Ensures consistent error handling across all services
+          # - Centralizes token management and security patterns
           bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh \
             --service-name "recommendations" \
             --provider-name "bookverse-recommendations-github" \
@@ -150,11 +281,20 @@ jobs:
             --verbose
           echo "✅ OIDC token exchange completed using shared bookverse-devops script"
 
+      # ═══ PHASE 3: DEPENDENCY & VERSION MANAGEMENT ═══
+      
+      # ─── Python Tooling Dependencies ───
+      # Install essential Python packages needed for version determination
+      # and configuration processing throughout the pipeline
       - name: "[Setup] Install Python dependencies"
         run: |
-          pip install --user PyYAML setuptools wheel
+          pip install --user PyYAML setuptools wheel              # Core tooling packages
           echo "✅ Python dependencies installed"
 
+      # ─── Semantic Version Determination ───
+      # Calculates appropriate version numbers for all artifacts using shared
+      # versioning logic. This ensures consistent versioning across all
+      # BookVerse services and proper version incrementing.
       - name: "[Setup] Determine SemVer"
         id: determine-semver
         run: |
@@ -330,75 +470,25 @@ jobs:
           echo "✅ Built and pushed Docker image (OIDC docker push + build-info)"
 
       - name: "[Evidence] API Image Package Evidence"
+        env:
+          EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
+          EVIDENCE_KEY_ALIAS: ${{ vars.EVIDENCE_KEY_ALIAS }}
         run: |
-          echo "📊 Generating evidence for API image package"
+          echo "📊 Generating evidence for API image package using shared library"
+          
+          # Source the evidence library
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           # Set package-specific environment variables
           export PACKAGE_NAME="recommendations"
           export PACKAGE_VERSION="$RECOMMENDATIONS_VERSION"
+          export SERVICE_NAME="recommendations"
           
-          echo "📊 Creating pytest evidence..."
+          # Use shared library function for Docker package evidence
+          # This automatically creates both pytest and SAST evidence with proper templates
+          attach_docker_package_evidence "$PACKAGE_NAME" "$PACKAGE_VERSION"
           
-          # Create pytest evidence predicate
-          jq -n \
-            --arg name "$PACKAGE_NAME" \
-            --arg version "$PACKAGE_VERSION" \
-            '{
-              "@type": "https://pytest.org/evidence/results/v1",
-              "predicateType": "https://pytest.org/evidence/results/v1",
-              "subject": [{"name": $name, "digest": {"sha256": $version}}],
-              "predicate": {
-                "test_framework": "pytest",
-                "total_tests": 25,
-                "passed_tests": 24,
-                "failed_tests": 1,
-                "coverage_percent": 85.5,
-                "test_duration_seconds": 45
-              }
-            }' > pytest-results.json
-          
-          # Create SAST evidence predicate  
-          jq -n \
-            --arg name "$PACKAGE_NAME" \
-            --arg version "$PACKAGE_VERSION" \
-            '{
-              "@type": "https://checkmarx.com/evidence/sast/v1.1",
-              "predicateType": "https://checkmarx.com/evidence/sast/v1.1", 
-              "subject": [{"name": $name, "digest": {"sha256": $version}}],
-              "predicate": {
-                "scan_type": "SAST",
-                "total_vulnerabilities": 3,
-                "high_findings": 0,
-                "medium_findings": 1,
-                "low_findings": 2
-              }
-            }' > sast-scan.json
-
-          echo "✅ Creating pytest evidence..."
-          jf evd create-evidence \
-            --predicate pytest-results.json \
-            --predicate-type "https://pytest.org/evidence/results/v1" \
-            --package-name "$PACKAGE_NAME" \
-            --package-version "$PACKAGE_VERSION" \
-            --package-repo-name "bookverse-recommendations-internal-docker-nonprod-local" \
-            --project "${{ vars.PROJECT_KEY }}" \
-            --provider-id github-actions \
-            --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" \
-            --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}" || echo "⚠️ Pytest evidence creation failed"
-          
-          echo "✅ Creating SAST evidence..."  
-          jf evd create-evidence \
-            --predicate sast-scan.json \
-            --predicate-type "https://checkmarx.com/evidence/sast/v1.1" \
-            --package-name "$PACKAGE_NAME" \
-            --package-version "$PACKAGE_VERSION" \
-            --package-repo-name "bookverse-recommendations-internal-docker-nonprod-local" \
-            --project "${{ vars.PROJECT_KEY }}" \
-            --provider-id github-actions \
-            --key "${{ secrets.EVIDENCE_PRIVATE_KEY }}" \
-            --key-alias "${{ vars.EVIDENCE_KEY_ALIAS }}" || echo "⚠️ SAST evidence creation failed"
-          
-          echo "✅ API image package evidence attached: pytest-results, sast-scan"
+          echo "✅ API image package evidence attached via shared library: pytest-results, sast-scan"
 
       - name: "[Artifacts] Recommendation Config"
         run: |
