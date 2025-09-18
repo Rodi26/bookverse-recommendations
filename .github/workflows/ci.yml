@@ -436,7 +436,7 @@ jobs:
           echo "📊 Creating pytest evidence with direct JFrog CLI..."
           
           # Create pytest evidence predicate
-          cat > pytest-results.json << EOF
+          cat > pytest-results.json << 'EOF'
 {
   "@type": "https://pytest.org/evidence/results/v1",
   "predicateType": "https://pytest.org/evidence/results/v1",
@@ -453,7 +453,7 @@ jobs:
 EOF
           
           # Create SAST evidence predicate  
-          cat > sast-scan.json << EOF
+          cat > sast-scan.json << 'EOF'
 {
   "@type": "https://checkmarx.com/evidence/sast/v1.1",
   "predicateType": "https://checkmarx.com/evidence/sast/v1.1", 
@@ -519,7 +519,7 @@ EOF
           echo ""
           
           echo "🧪 Creating manual debug evidence with all variables printed:"
-          cat > debug-manual.json << EOF
+          cat > debug-manual.json << 'EOF'
 {
   "@type": "https://debug.manual/test/v1",
   "predicateType": "https://debug.manual/test/v1",
@@ -596,7 +596,7 @@ EOF
           export PACKAGE_VERSION="$CONFIG_VERSION"
           
           # Create config bundle evidence predicate
-          cat > config-bundle.json << EOF
+          cat > config-bundle.json << 'EOF'
 {
   "@type": "https://in-toto.io/Statement/v0.1",
   "predicateType": "https://in-toto.io/Statement/v0.1",
