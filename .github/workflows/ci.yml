@@ -1,9 +1,9 @@
 name: CI
 
-
 concurrency:
   group: ci-${{ vars.PROJECT_KEY }}-${{ github.repository }}
   cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -35,11 +35,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
+
       - name: "[Setup] Checkout bookverse-infra for shared scripts"
         uses: actions/checkout@v4
         with:
           repository: yonatanp-jfrog/bookverse-infra
           path: bookverse-infra
+
       - name: "[Demo] Commit Analysis (Optimized for Visibility)"
         id: demo-filter
         env:
@@ -87,6 +89,7 @@ jobs:
           repository: 'yonatanp-jfrog/bookverse-infra'
           ref: 'main'
           path: 'bookverse-infra'
+
       - name: "[Info] Trigger Information"
         run: |
           echo "🚀 CI Pipeline: Build & Test Phase"
@@ -95,18 +98,19 @@ jobs:
           echo "🎯 Create App Version: ${{ needs.analyze-commit.outputs.create_app_version }}"
           echo "👤 Triggered by: ${{ github.actor }}"
           echo "🕐 Timestamp: $(date -u)"
+
       - name: "[Setup] Build Info"
         id: set-build-info
         run: |
           BUILD_NAME="${{ github.event.repository.name }}_${{ github.workflow }}_${{ github.job }}"
-          BUILD_NUMBER="${{ github.run_number }}-${{ github.run_attempt }}"
-          
+          BUILD_NUMBER="${{ github.run_number }}-${{ github.run_attempt }}"  
           echo "BUILD_NAME=$BUILD_NAME" >> $GITHUB_ENV
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "build_name=$BUILD_NAME" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "SERVICE_NAME=recommendations" >> $GITHUB_ENV
           echo "APPLICATION_KEY=bookverse-recommendations" >> $GITHUB_ENV
+
       - name: "[Setup] JFrog CLI"
         uses: EyalDelarea/setup-jfrog-cli@swampUpAppTrust
         with:
@@ -122,6 +126,7 @@ jobs:
           JFROG_CLI_BUILD_NAME: ${{ env.BUILD_NAME }}
           JFROG_CLI_BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
           JFROG_CLI_BUILD_PROJECT: ${{ vars.PROJECT_KEY }}
+          
       - name: "[Setup] Verify JFrog Authentication"
         run: |
           echo "🔐 Verifying JFrog CLI authentication and connectivity..."
@@ -139,6 +144,7 @@ jobs:
             --docker-registry "${{ vars.DOCKER_REGISTRY }}" \
             --verbose
           echo "✅ OIDC token exchange completed using shared bookverse-devops script"
+          
       - name: "[Setup] Install Python dependencies"
         run: |
           pip install --user PyYAML setuptools wheel
@@ -147,6 +153,7 @@ jobs:
       - name: "[Setup] Determine SemVer"
         id: determine-semver
         run: |
+          set -euo pipefail
           SERVICE_NAME=${SERVICE_NAME:-$(echo ${{ github.event.repository.name }} | sed 's/bookverse-//')}
           APPLICATION_KEY="bookverse-$SERVICE_NAME"
           if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
@@ -196,15 +203,11 @@ jobs:
             fi
           done
           
-          # ─── Environment Variable Export ───
-          # Make all determined versions available to subsequent workflow steps
           echo "RECOMMENDATIONS_VERSION=$RECOMMENDATIONS_VERSION" >> $GITHUB_ENV
           echo "WORKER_VERSION=$WORKER_VERSION" >> $GITHUB_ENV
           echo "CONFIG_VERSION=$CONFIG_VERSION" >> $GITHUB_ENV
           echo "RESOURCES_VERSION=$RESOURCES_VERSION" >> $GITHUB_ENV
           
-          # ─── Backward Compatibility ───
-          # Maintain IMAGE_TAG variable for legacy compatibility with existing build steps
           IMAGE_TAG="$RECOMMENDATIONS_VERSION"
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
           
@@ -230,7 +233,6 @@ jobs:
       - name: "[Setup] JFrog Environment (Consolidated)"
         run: |
           echo "🔧 Setting up consolidated JFrog environment for all subsequent steps"
-          # Centralized JFrog environment setup (bookverse-devops pattern)
           echo "JF_PROJECT=${{ vars.PROJECT_KEY }}" >> $GITHUB_ENV
           echo "JFROG_CLI_BUILD_PROJECT=${{ vars.PROJECT_KEY }}" >> $GITHUB_ENV
           echo "JFROG_CLI_BUILD_NAME=$BUILD_NAME" >> $GITHUB_ENV
@@ -247,7 +249,6 @@ jobs:
       - name: "[Test] Install deps (Optimized with bookverse-core)"
         run: |
           
-          # Install minimal dependencies for demo testing (following inventory service pattern)
           echo "📦 Installing minimal dependencies from local repository..."
           jf pip install --no-deps --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
             pytest==8.3.2 \
@@ -266,7 +267,6 @@ jobs:
         run: |
           echo "🧪 Running simplified tests for E2E demo"
           python -m pytest tests/test_simple.py -v --cov-report=xml --cov-report=term-missing
-          # Create a simple coverage report for demo purposes
           echo '<?xml version="1.0" ?><coverage line-rate="0.85"><packages></packages></coverage>' > coverage.xml
           COVERAGE_PERCENT="85.0"
           echo "📊 Coverage: ${COVERAGE_PERCENT}% (demo simplified)"
@@ -276,28 +276,20 @@ jobs:
       - name: "[Build] API image"
         run: |
           set -euo pipefail
-          # Use JFrog CLI to authenticate pushes without requiring docker login
           SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
           jf c use "$SERVER_ID" || true
-          # JFrog environment already configured in consolidated setup step
 
-          # Using OIDC-based server configuration from setup action; no admin token required
-          # Use individual package version for recommendations Docker image
           REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
           REGISTRY_URL="${{ vars.DOCKER_REGISTRY }}"
           IMAGE_NAME="$REGISTRY_URL/$REPO_KEY/$SERVICE_NAME:$RECOMMENDATIONS_VERSION"
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
           echo "Using recommendations package version: $RECOMMENDATIONS_VERSION"
 
-          # ─── Build and Push Docker Image ───
           jf docker build --pull -t "$IMAGE_NAME" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" .
           docker push "$IMAGE_NAME"
           
-          # ─── Resolve Image Digest and Associate with Build-Info ───
-          # CRITICAL: Must happen immediately after push while image is fresh
           echo "📋 Resolving image digest and associating with build-info..."
           
-          # Resolve image digest from pushed image
           MAIN_DIGEST=$(docker inspect "$IMAGE_NAME" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
           if [[ -z "$MAIN_DIGEST" || "$MAIN_DIGEST" == "<no value>" ]]; then
             docker pull "$IMAGE_NAME" >/dev/null 2>&1 || true
@@ -307,7 +299,6 @@ jobs:
             echo "❌ Could not resolve image digest for $IMAGE_NAME" >&2; exit 1
           fi
           
-          # Associate Docker image with build-info immediately
           echo "${IMAGE_NAME%@*}@${MAIN_DIGEST}" > main_image.txt
           echo "📋 Associating API image: $(cat main_image.txt)"
           jf rt build-docker-create "$REPO_KEY" \
@@ -329,7 +320,6 @@ jobs:
           echo "🔐 Evidence will be cryptographically signed for compliance verification"
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
-          # Set package-specific environment variables
           export PACKAGE_NAME="recommendations"
           export PACKAGE_VERSION="$RECOMMENDATIONS_VERSION"
           export SERVICE_NAME="recommendations"
@@ -346,18 +336,14 @@ jobs:
           
           mkdir -p dist/config
           
-          # Generate recommendation configuration artifact package
           cp config/recommendations-settings.yaml dist/config/recommendations-settings.yaml
           
-          # Create tar.gz package (following inventory service pattern)
           cd dist/config
           tar -czf "recommendations-config-$CONFIG_VERSION.tar.gz" recommendations-settings.yaml
           cd ../..
           
-          # Use individual package version for recommendation-config
           echo "Using recommendation-config package version: $CONFIG_VERSION"
           
-          # Upload packaged artifact to generic repository
           GENERIC_REPO="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-generic-nonprod-local"
           jf rt upload "dist/config/recommendations-config-$CONFIG_VERSION.tar.gz" "$GENERIC_REPO/$SERVICE_NAME/config/$CONFIG_VERSION/recommendations-config-$CONFIG_VERSION.tar.gz" \
             --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
@@ -370,15 +356,11 @@ jobs:
         run: |
           echo "📦 Generating evidence for config package using shared library"
           
-          # Source the evidence library
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
-          # Set package-specific environment variables  
           export PACKAGE_NAME="recommendations-config-$CONFIG_VERSION.tar.gz"
           export PACKAGE_VERSION="$CONFIG_VERSION"
           
-          # Use shared library function for generic package evidence
-          # This automatically creates config-bundle evidence with proper templates
           attach_generic_package_evidence "$PACKAGE_NAME" "$PACKAGE_VERSION"
           
           echo "✅ Config package evidence attached via shared library: config-bundle"
@@ -388,18 +370,14 @@ jobs:
           set -euo pipefail
           mkdir -p dist/resources
           
-          # Generate resources artifact package (stopwords and other ML resources)
           cp resources/stopwords.txt dist/resources/stopwords.txt
           
-          # Create tar.gz package (following inventory service pattern)
           cd dist/resources
           tar -czf "recommendations-resources-$RESOURCES_VERSION.tar.gz" stopwords.txt
           cd ../..
           
-          # Use individual package version for resources
           echo "Using resources package version: $RESOURCES_VERSION"
           
-          # Upload packaged artifact to generic repository
           GENERIC_REPO="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-generic-nonprod-local"
           jf rt upload "dist/resources/recommendations-resources-$RESOURCES_VERSION.tar.gz" "$GENERIC_REPO/$SERVICE_NAME/resources/$RESOURCES_VERSION/recommendations-resources-$RESOURCES_VERSION.tar.gz" \
             --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --project "${{ vars.PROJECT_KEY }}"
@@ -412,15 +390,11 @@ jobs:
         run: |
           echo "📚 Generating evidence for resources package"
           
-          # Source the evidence library
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
-          # Set package-specific environment variables
           export PACKAGE_NAME="recommendations-resources-$RESOURCES_VERSION.tar.gz"
           export PACKAGE_VERSION="$RESOURCES_VERSION"
           
-          # Attach generic package evidence
-          # Evidence: Config Bundle Verification (resource file validation and integrity)
           attach_generic_package_evidence "$PACKAGE_NAME" "$PACKAGE_VERSION"
           
           echo "✅ Resources package evidence attached via shared library: config-bundle"
@@ -433,31 +407,24 @@ jobs:
           echo "🏗️ Version: $WORKER_VERSION (independent from API service)"
           echo "📦 Base: python:3.11-slim with ML libraries and specialized dependencies"
           
-          # Use JFrog CLI to authenticate pushes without requiring docker login
           SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
           jf c use "$SERVER_ID" || true
 
-          # Use individual package version for recommendations-worker Docker image
           WORKER_NAME="$SERVICE_NAME-worker"
           WORKER_TAG="$WORKER_VERSION"
           echo "✅ Using individual package version for worker: $WORKER_TAG"
           echo "WORKER_TAG=$WORKER_TAG" >> $GITHUB_ENV
           
-          # Build worker image name using same pattern as API image
           REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
           REGISTRY_URL="${{ vars.DOCKER_REGISTRY }}"
           WORKER_IMAGE="$REGISTRY_URL/$REPO_KEY/$WORKER_NAME:$WORKER_TAG"
           echo "WORKER_IMAGE=$WORKER_IMAGE" >> $GITHUB_ENV
 
-          # ─── Build and Push Worker Docker Image ───
           jf docker build -f Dockerfile.worker -t "$WORKER_IMAGE" --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" .
           docker push "$WORKER_IMAGE"
           
-          # ─── Resolve Worker Image Digest and Associate with Build-Info ───
-          # CRITICAL: Must happen immediately after push while image is fresh
           echo "📋 Resolving worker image digest and associating with build-info..."
           
-          # Resolve worker image digest from pushed image
           WORKER_DIGEST=$(docker inspect "$WORKER_IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F@ '{print $2}')
           if [[ -z "$WORKER_DIGEST" || "$WORKER_DIGEST" == "<no value>" ]]; then
             docker pull "$WORKER_IMAGE" >/dev/null 2>&1 || true
@@ -467,7 +434,6 @@ jobs:
             echo "❌ Could not resolve image digest for $WORKER_IMAGE" >&2; exit 1
           fi
           
-          # Associate Worker Docker image with build-info immediately
           echo "${WORKER_IMAGE%@*}@${WORKER_DIGEST}" > worker_image.txt
           echo "📋 Associating worker image: $(cat worker_image.txt)"
           jf rt build-docker-create "$REPO_KEY" \
@@ -485,7 +451,6 @@ jobs:
         run: |
           echo "🔧 Generating evidence for worker image package"
           
-          # Source the evidence library
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
           export PACKAGE_NAME="recommendations-worker"
@@ -537,13 +502,9 @@ jobs:
         run: |
           echo "🏗️ Generating evidence for build-info"
           
-          # Source the evidence library
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
-          # Build evidence uses auto-detected environment variables
           
-          # Attach build evidence
-          # Evidence: FOSSA License Scan (dependency license compliance) + SonarQube Quality Gate (code quality analysis)
           attach_build_evidence
           
           echo "✅ Build evidence attached via shared library: fossa-license-scan, sonar-quality-gate"
@@ -564,7 +525,6 @@ jobs:
       SERVICE_NAME: "recommendations"
       APPLICATION_KEY: "bookverse-recommendations"
       APP_VERSION: ${{ needs.build-test-publish.outputs.app_version }}
-      # Common promotion environment variables
       EVIDENCE_PRIVATE_KEY: ${{ secrets.EVIDENCE_PRIVATE_KEY }}
       EVIDENCE_KEY_ALIAS: ${{ vars.EVIDENCE_KEY_ALIAS }}
       JFROG_URL: ${{ vars.JFROG_URL }}
@@ -601,25 +561,16 @@ jobs:
           JFROG_CLI_BUILD_PROJECT: ${{ vars.PROJECT_KEY }}
 
       - name: "[Auth] OIDC Token Exchange (bookverse-devops shared script)"
+        id: exchange-oidc
         run: |
-          set -euo pipefail
-          echo "🔐 Exchanging OIDC token using shared script from bookverse-devops"
-          
-          # Use shared OIDC exchange script with proper parameters
-          EXCHANGE_SCRIPT="bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh"
-          if [[ -f "$EXCHANGE_SCRIPT" ]]; then
-            chmod +x "$EXCHANGE_SCRIPT"
-            "$EXCHANGE_SCRIPT" \
-              --service-name "recommendations" \
-              --provider-name "bookverse-recommendations-github" \
-              --jfrog-url "${{ vars.JFROG_URL }}" \
-              --docker-registry "${{ vars.DOCKER_REGISTRY }}" \
-              --verbose
-            echo "✅ OIDC token exchange completed using shared script"
-          else
-            echo "❌ OIDC exchange script not found at $EXCHANGE_SCRIPT" >&2
-            exit 1
-          fi
+          echo "🔐 Using bookverse-devops shared OIDC exchange script"
+          bookverse-infra/libraries/bookverse-devops/scripts/exchange-oidc-token.sh \
+            --service-name "recommendations" \
+            --provider-name "bookverse-recommendations-github" \
+            --jfrog-url "${{ vars.JFROG_URL }}" \
+            --docker-registry "${{ vars.DOCKER_REGISTRY }}" \
+            --verbose
+          echo "✅ OIDC token exchange completed using shared bookverse-devops script"
 
       - name: "[Setup] Install Python dependencies"
         run: |
@@ -629,8 +580,6 @@ jobs:
       - name: "[Setup] Use App Version from Build Job"
         id: use-app-version
         run: |
-          # Use the app version that was already determined in the build-test-publish job
-          # No need to re-run semver determination - use the version from the published build
           APP_VERSION="${{ needs.build-test-publish.outputs.app_version }}"
           
           if [[ -z "$APP_VERSION" ]]; then
@@ -647,7 +596,6 @@ jobs:
         run: |
           set -euo pipefail
           echo "🔎 Fetching build info to confirm artifacts are present"
-          # URL-encode build name and number to avoid malformed URL errors
           ENC_BUILD_NAME=$(printf '%s' "$BUILD_NAME" | jq -sRr @uri)
           ENC_BUILD_NUMBER=$(printf '%s' "$BUILD_NUMBER" | jq -sRr @uri)
           URL="${{ vars.JFROG_URL }}/artifactory/api/build/${ENC_BUILD_NAME}/${ENC_BUILD_NUMBER}?project=${{ vars.PROJECT_KEY }}"
@@ -662,28 +610,21 @@ jobs:
           echo "📦 Binding artifacts from build-info: ${{ needs.build-test-publish.outputs.build_name }}/${{ needs.build-test-publish.outputs.build_number }}"
           echo "🔗 This creates an immutable link between application version and all published artifacts"
           
-           # Use the JF_OIDC_TOKEN from the OIDC exchange step
            if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
              echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
              exit 1
            fi
            echo "✅ Using JF_OIDC_TOKEN for AppTrust API authentication"
           
-          # Create application version using correct AppTrust API payload structure
-          # Based on working implementation from recommendations service
           BASE="${{ vars.JFROG_URL }}/apptrust/api/v1"
           APP_KEY="$APPLICATION_KEY"
           
-          # Generate demo tag (similar to recommendations service)
           TAG_OPTIONS=(release hotfix feature bugfix enhancement security performance refactor)
-          TAG_INDEX=$((${GITHUB_RUN_NUMBER:-0} % ${#TAG_OPTIONS[@]}))
+          TAG_INDEX=$((${GITHUB_RUN_NUMBER:-0} % ${
           APP_TAG="${TAG_OPTIONS[$TAG_INDEX]}"
           
-          # Create application version payload using exact same approach as recommendations service
-          # Use the build name from the build-test-publish job where build info was published
           ACTUAL_BUILD_NAME="${{ needs.build-test-publish.outputs.build_name }}"
           
-          # Create payload using string concatenation (same as recommendations service)
           ACTUAL_BUILD_NUMBER="${{ needs.build-test-publish.outputs.build_number }}"
           echo "🔧 Using actual build number from first job: $ACTUAL_BUILD_NUMBER"
           APP_VERSION_PAYLOAD='{"version":"'$APP_VERSION'","tag":"'$APP_TAG'","sources":{"builds":[{"name":"'$ACTUAL_BUILD_NAME'","number":"'$ACTUAL_BUILD_NUMBER'","repository_key":"'${{ vars.PROJECT_KEY }}'-build-info","include_dependencies":false}]}}'
@@ -691,7 +632,6 @@ jobs:
           echo "📋 Creating application version with payload:"
           echo "$APP_VERSION_PAYLOAD" | jq . || echo "$APP_VERSION_PAYLOAD"
           
-          # Call AppTrust API using exact same approach as recommendations service
           RESP_BODY=$(mktemp)
            HTTP_STATUS=$(curl -sS -L -o "$RESP_BODY" -w "%{http_code}" -X POST \
              "$BASE/applications/$APP_KEY/versions?async=false" \
@@ -749,13 +689,9 @@ jobs:
         run: |
           echo "📋 Generating evidence for application version (UNASSIGNED stage)"
           
-          # Source the evidence library
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           
-          # Application evidence uses auto-detected environment variables
           
-          # Attach application evidence for UNASSIGNED stage
-          # Evidence: SLSA Provenance (supply chain security) + Jira Release (release tracking and approval)
           attach_application_unassigned_evidence
           
           echo "✅ Application version evidence attached via shared library: slsa-provenance, jira-release"
@@ -767,18 +703,15 @@ jobs:
           echo "🎯 Target Stage: DEV (development environment for feature testing)"
           echo "🛡️ Evidence Type: Smoke tests and basic health validation"
           
-           # Use the JF_OIDC_TOKEN from the OIDC exchange step
            if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
              echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
              exit 1
            fi
            echo "✅ Using JF_OIDC_TOKEN for DEV promotion"
           
-          # Source evidence library (includes promotion setup)
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
-          # Promote to DEV
           if advance_one_step; then
             echo "✅ Successfully promoted to DEV"
           else
@@ -786,8 +719,6 @@ jobs:
             exit 1
           fi
           
-          # Generate and attach DEV stage evidence
-          # Evidence: Smoke Tests (basic health checks in DEV environment)
           attach_application_dev_evidence
           echo "✅ DEV stage evidence attached via shared library: smoke-tests"
 
@@ -795,18 +726,15 @@ jobs:
         run: |
           echo "🔍 Promoting to QA stage and generating evidence"
           
-           # Use the JF_OIDC_TOKEN from the OIDC exchange step
            if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
              echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
              exit 1
            fi
            echo "✅ Using JF_OIDC_TOKEN for QA promotion"
           
-          # Source evidence library (includes promotion setup)
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
-          # Promote to QA
           if advance_one_step; then
             echo "✅ Successfully promoted to QA"
           else
@@ -814,8 +742,6 @@ jobs:
             exit 1
           fi
           
-          # Generate and attach QA stage evidence
-          # Evidence: DAST Scan (dynamic security testing) + API Tests (integration testing)
           attach_application_qa_evidence
           echo "✅ QA stage evidence attached via shared library: dast-scan, api-tests"
 
@@ -823,18 +749,15 @@ jobs:
         run: |
           echo "🏗️ Promoting to STAGING stage and generating evidence"
           
-           # Use the JF_OIDC_TOKEN from the OIDC exchange step
            if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
              echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
              exit 1
            fi
            echo "✅ Using JF_OIDC_TOKEN for STAGING promotion"
           
-          # Source evidence library (includes promotion setup)
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
-          # Promote to STAGING
             if advance_one_step; then
             echo "✅ Successfully promoted to STAGING"
             else
@@ -842,8 +765,6 @@ jobs:
               exit 1
             fi
           
-          # Generate and attach STAGING stage evidence
-          # Evidence: IaC Scan (infrastructure security) + Pentest (penetration testing) + Change Approval (management approval)
           attach_application_staging_evidence
           echo "✅ STAGING stage evidence attached via shared library: iac-scan, pentest, change-approval"
 
@@ -851,18 +772,15 @@ jobs:
         run: |
           echo "🚀 Promoting to PROD stage and generating evidence"
           
-           # Use the JF_OIDC_TOKEN from the OIDC exchange step
            if [[ -z "${JF_OIDC_TOKEN:-}" ]]; then
              echo "❌ Missing JF_OIDC_TOKEN. Ensure OIDC exchange step succeeded." >&2
              exit 1
            fi
            echo "✅ Using JF_OIDC_TOKEN for PROD promotion"
           
-          # Source evidence library (includes promotion setup)
           source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
           setup_promotion_environment
           
-          # Promote to PROD
           if advance_one_step; then
             echo "✅ Successfully promoted to PROD"
           else
@@ -870,8 +788,6 @@ jobs:
             exit 1
           fi
 
-          # Generate and attach PROD stage evidence
-          # Evidence: ArgoCD Deployment Verification (production deployment health and status)
           attach_application_prod_evidence
           echo "✅ PROD stage evidence attached via shared library: deployment-verification"
           echo "🎉 SUCCESS: Application version $APP_VERSION promoted to PROD with all evidence attached!"

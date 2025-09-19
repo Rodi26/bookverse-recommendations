@@ -1,8 +1,5 @@
 name: Promote (Manual Test)
 
-# MIGRATION: Using shared promotion workflow from bookverse-demo-init
-# This replaces the 378-line custom promotion workflow with shared, standardized logic
-
 on:
   workflow_dispatch:
     inputs:
@@ -22,9 +19,6 @@ on:
         type: string
 
 jobs:
-  # =================================================================
-  # SHARED PROMOTION WORKFLOW (Replaces ~380 lines of custom code)
-  # =================================================================
   promote:
     name: "Promote to ${{ inputs.target_stage }}"
     uses: yonatanp-jfrog/bookverse-infra/.github/workflows/promote.reusable.yml@main
@@ -36,9 +30,6 @@ jobs:
       evidence_key_alias: ${{ vars.EVIDENCE_KEY_ALIAS }}
     secrets: inherit
 
-  # =================================================================
-  # SUMMARY
-  # =================================================================
   summary:
     name: "Promotion Summary"
     needs: promote
