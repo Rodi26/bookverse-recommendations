@@ -3,17 +3,6 @@ from .schemas import BookLite, RecommendationItem, Availability
 from .settings import get_weights, filter_out_of_stock_enabled
 
 
-def compute_popularity_normalized(stock_out_counts: Dict[str, int]) -> Dict[str, float]:
-    """Normalize raw stock_out counts to the [0,1] range.
-
-    Returns an empty mapping when no counts are provided.
-    """
-    if not stock_out_counts:
-        return {}
-    max_count = max(stock_out_counts.values()) or 1
-    return {k: v / max_count for k, v in stock_out_counts.items()}
-
-
 def score_simple(seed_books: Iterable[BookLite], candidate: BookLite, popularity: Dict[str, float]) -> Tuple[float, Dict[str, float]]:
     """Score a candidate book given seed books and a popularity prior.
 

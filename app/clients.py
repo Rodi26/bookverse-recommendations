@@ -4,8 +4,7 @@ from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 
 import httpx
-from bookverse_core.config import BaseConfig
-from bookverse_core.utils.logging import get_logger, log_error_with_context
+from bookverse_core.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
