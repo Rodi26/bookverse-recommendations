@@ -13,3 +13,4 @@ ci-latest.log
 
 # Build artifacts
 libs/bookverse-core/build/
+.venv/
