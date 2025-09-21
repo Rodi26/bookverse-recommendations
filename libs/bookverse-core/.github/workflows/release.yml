@@ -273,8 +273,8 @@ jobs:
           asset_name: bookverse-core-packages
           asset_content_type: application/zip
 
-  validate-release:
-    name: Validate Release
+  final-validation:
+    name: Final Validation
     runs-on: ubuntu-latest
     needs: [validate-release, build-release, create-github-release]
     
