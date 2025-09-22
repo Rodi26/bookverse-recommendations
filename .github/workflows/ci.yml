@@ -299,6 +299,8 @@ jobs:
           set -euo pipefail
           SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
           jf c use "$SERVER_ID" || true
+          export JF_PROJECT="${{ vars.PROJECT_KEY }}"
+          export JFROG_CLI_BUILD_PROJECT="${{ vars.PROJECT_KEY }}"
 
           REPO_KEY="${{ vars.PROJECT_KEY }}-$SERVICE_NAME-internal-docker-nonprod-local"
           IMAGE_NAME="${{ vars.DOCKER_REGISTRY }}/$REPO_KEY/$SERVICE_NAME:$RECOMMENDATIONS_VERSION"
@@ -416,6 +418,8 @@ jobs:
           
           SERVER_ID="${SETUP_JFROG_CLI_SERVER_IDS:-setup-jfrog-cli-server}"
           jf c use "$SERVER_ID" || true
+          export JF_PROJECT="${{ vars.PROJECT_KEY }}"
+          export JFROG_CLI_BUILD_PROJECT="${{ vars.PROJECT_KEY }}"
 
           WORKER_NAME="$SERVICE_NAME-worker"
           WORKER_TAG="$WORKER_VERSION"
