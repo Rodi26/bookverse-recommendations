@@ -77,7 +77,6 @@ jobs:
       build_number: ${{ steps.set-build-info.outputs.build_number }}
       app_version: ${{ steps.determine-semver.outputs.app_version }}
       coverage_percent: ${{ steps.test-coverage.outputs.coverage_percent }}
-      jf_oidc_token: ${{ steps.exchange-oidc.outputs.token }}
 
     steps:
       - name: "[Setup] Checkout"
