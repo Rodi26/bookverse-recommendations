@@ -1016,7 +1016,7 @@ jobs:
           echo "   - 'valid': Other valid SemVer versions"
           echo "   - Non-SemVer versions: No special tags (ignored for 'latest')"
 
-          echo "   - Non-SemVer versions: No special tags (ignored for 'latest')" "📊 Enhanced Build Summary (bookverse-devops pattern)"
+      - name: "📊 Enhanced Build Summary (bookverse-devops pattern)"
         if: always()
         run: |
           echo "📊 Generating comprehensive CI/CD pipeline summary for stakeholder visibility"
