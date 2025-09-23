@@ -1014,7 +1014,9 @@ jobs:
           echo "   - 'latest': Highest SemVer version in PROD"
           echo "   - 'quarantine': Versions that were rolled back"
           echo "   - 'valid': Other valid SemVer versions"
-          echo "   - Non-SemVer versions: No special tags (ignored for 'latest')"      - name: "📊 Enhanced Build Summary (bookverse-devops pattern)"
+          echo "   - Non-SemVer versions: No special tags (ignored for 'latest')"
+
+          echo "   - Non-SemVer versions: No special tags (ignored for 'latest')" "📊 Enhanced Build Summary (bookverse-devops pattern)"
         if: always()
         run: |
           echo "📊 Generating comprehensive CI/CD pipeline summary for stakeholder visibility"
