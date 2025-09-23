@@ -7,11 +7,10 @@ from .schemas import BookLite, Availability
 from .settings import get_ttl_seconds
 
 
-RECO_TTL_SECONDS = int(os.getenv("RECO_TTL_SECONDS", str(get_ttl_seconds())))  # can be overridden via env
+RECO_TTL_SECONDS = int(os.getenv("RECO_TTL_SECONDS", str(get_ttl_seconds())))
 
 
 class CatalogIndices:
-    """In-memory indices for recommendation candidate search."""
     def __init__(self) -> None:
         self.book_by_id: Dict[str, BookLite] = {}
         self.genre_to_book_ids: Dict[str, Set[str]] = {}
@@ -21,26 +20,22 @@ class CatalogIndices:
 
 
 class Indexer:
-    """Build and serve catalog indices with a simple TTL cache."""
 
     def __init__(self, client: Optional[InventoryClient] = None) -> None:
         self.client = client or InventoryClient()
         self.indices = CatalogIndices()
 
     def _is_stale(self) -> bool:
-        """Return True if the cached indices are older than TTL or cache disabled."""
         if RECO_TTL_SECONDS <= 0:
             return True
         return (time.time() - self.indices.last_built_at) > RECO_TTL_SECONDS
 
     def ensure_indices(self) -> CatalogIndices:
-        """Return indices, rebuilding if missing or stale."""
         if not self.indices.book_by_id or self._is_stale():
             self.rebuild()
         return self.indices
 
     def rebuild(self) -> None:
-        """Rebuild all in-memory indices and recompute popularity."""
         books_payload = self.client.list_books(per_page=100)
         book_by_id: Dict[str, BookLite] = {}
         genre_to_book_ids: Dict[str, Set[str]] = {}
@@ -63,7 +58,6 @@ class Indexer:
             for a in book.authors:
                 author_to_book_ids.setdefault(a, set()).add(book.id)
 
-        # Popularity from recent transactions (stock_out)
         transactions = self.client.list_transactions(per_page=100)
         stock_out_counts: Dict[str, int] = {}
         for tx in transactions:
@@ -71,7 +65,6 @@ class Indexer:
                 bid = str(tx.get("book_id"))
                 stock_out_counts[bid] = stock_out_counts.get(bid, 0) + abs(int(tx.get("quantity_change", -1)))
 
-        # Normalize popularity
         if stock_out_counts:
             max_count = max(stock_out_counts.values()) or 1
             popularity = {k: v / max_count for k, v in stock_out_counts.items()}

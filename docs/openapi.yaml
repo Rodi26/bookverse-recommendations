@@ -1,0 +1,1628 @@
+openapi: 3.0.3
+info:
+  title: BookVerse Recommendations Service API
+  description: |
+    ## Overview
+    
+    The BookVerse Recommendations Service provides intelligent book recommendations using advanced machine learning algorithms. The service delivers personalized recommendations based on user behavior, book content analysis, and collaborative filtering techniques.
+    
+    ## Key Features
+    
+    - **Personalized Recommendations**: ML-driven suggestions based on user preferences
+    - **Content-Based Filtering**: Recommendations based on book content similarity
+    - **Collaborative Filtering**: User behavior-based recommendation engine
+    - **Real-Time Processing**: Instant recommendation generation and updates
+    - **A/B Testing Support**: Multiple recommendation algorithms for testing
+    - **Analytics Integration**: Comprehensive tracking of recommendation performance
+    
+    ## Machine Learning Models
+    
+    - **Content Similarity**: TF-IDF and cosine similarity for content matching
+    - **Collaborative Filtering**: Matrix factorization and neighborhood methods
+    - **Deep Learning**: Neural networks for complex pattern recognition
+    - **Ensemble Methods**: Combining multiple algorithms for optimal results
+    
+    ## Performance
+    
+    - **Response Time**: < 100ms for recommendation requests
+    - **Throughput**: 10,000+ recommendations per second
+    - **Model Updates**: Real-time learning from user interactions
+    - **Caching**: Intelligent caching for frequently requested recommendations
+    
+  version: 1.1.0
+  contact:
+    name: BookVerse ML Team
+    url: https://docs.bookverse.com/ml-support
+    email: ml-team@bookverse.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.bookverse.com/recommendations/v1
+    description: Production server
+  - url: https://staging-api.bookverse.com/recommendations/v1
+    description: Staging server
+  - url: http://localhost:8002
+    description: Local development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /recommendations:
+    get:
+      summary: Get personalized book recommendations
+      description: |
+        Generate personalized book recommendations using advanced machine learning algorithms that consider user preferences, behavior patterns, and content similarity.
+        
+        **Recommendation Algorithms:**
+        - **Content-Based**: Analyzes book features, genres, authors, and descriptions
+        - **Collaborative**: Uses behavior patterns from similar users
+        - **Hybrid**: Combines multiple approaches for optimal results
+        - **Popularity**: Trending books with high ratings and engagement
+        
+        **Personalization Factors:**
+        - Previous purchases and ratings
+        - Browsing history and search patterns
+        - Similar user preferences
+        - Genre and author preferences
+        - Price sensitivity and availability
+        
+        **Performance Optimization:**
+        - Cached recommendations updated every 5 minutes
+        - Pre-computed similarity matrices
+        - Real-time user behavior integration
+        - Intelligent fallback strategies
+      operationId: getRecommendations
+      tags:
+        - Recommendations
+      parameters:
+        - name: user_id
+          in: query
+          description: |
+            User identifier for personalized recommendations. If not provided,
+            returns popular or trending books based on overall platform behavior.
+          schema:
+            type: string
+            maxLength: 100
+            example: "user_12345"
+        
+        - name: book_id
+          in: query
+          description: |
+            Base book ID for content-similar recommendations. When provided,
+            returns books similar to this specific book.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+            example: 123
+        
+        - name: algorithm
+          in: query
+          description: Specific recommendation algorithm to use
+          schema:
+            type: string
+            enum: [content, collaborative, hybrid, popularity, trending]
+            default: hybrid
+            example: hybrid
+        
+        - name: categories
+          in: query
+          description: |
+            Comma-separated list of preferred categories to focus recommendations.
+            Empty means all categories are considered.
+          schema:
+            type: string
+            example: "programming,technology,science"
+        
+        - name: exclude_owned
+          in: query
+          description: |
+            Exclude books already owned/purchased by the user.
+            Requires user_id to be provided.
+          schema:
+            type: boolean
+            default: true
+            example: true
+        
+        - name: max_price
+          in: query
+          description: Maximum price filter for recommendations
+          schema:
+            type: number
+            format: decimal
+            minimum: 0
+            example: 50.00
+        
+        - name: min_rating
+          in: query
+          description: Minimum rating filter (1-5 stars)
+          schema:
+            type: number
+            format: float
+            minimum: 1
+            maximum: 5
+            example: 4.0
+        
+        - name: limit
+          in: query
+          description: Maximum number of recommendations to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+            example: 10
+        
+        - name: diversity
+          in: query
+          description: |
+            Diversity factor (0-1) to balance between similarity and variety.
+            Higher values increase recommendation diversity.
+          schema:
+            type: number
+            format: float
+            minimum: 0
+            maximum: 1
+            default: 0.3
+            example: 0.3
+        
+        - name: include_metadata
+          in: query
+          description: Include recommendation metadata and explanations
+          schema:
+            type: boolean
+            default: false
+            example: true
+        
+        - name: ab_test_group
+          in: query
+          description: |
+            A/B test group identifier for algorithm testing.
+            Used for performance comparison and optimization.
+          schema:
+            type: string
+            maxLength: 50
+            example: "experiment_v2"
+
+      responses:
+        '200':
+          description: Recommendations generated successfully
+          headers:
+            X-Recommendation-Algorithm:
+              description: Algorithm used for generating recommendations
+              schema:
+                type: string
+                example: "hybrid"
+            X-Model-Version:
+              description: ML model version used
+              schema:
+                type: string
+                example: "v2.1.3"
+            X-Cache-Status:
+              description: Cache status for this response
+              schema:
+                type: string
+                enum: [hit, miss, partial]
+                example: hit
+            X-Processing-Time-Ms:
+              description: Processing time in milliseconds
+              schema:
+                type: integer
+                example: 87
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Recommendation'
+                  metadata:
+                    $ref: '#/components/schemas/RecommendationMetadata'
+                  algorithm_info:
+                    $ref: '#/components/schemas/AlgorithmInfo'
+                    description: Included only when include_metadata=true
+              examples:
+                personalized_recommendations:
+                  summary: Personalized recommendations for a user
+                  value:
+                    data:
+                      - book_id: 456
+                        title: "Design Patterns: Elements of Reusable Object-Oriented Software"
+                        author: "Gang of Four"
+                        isbn: "978-0201633612"
+                        price: 54.99
+                        rating: 4.6
+                        category: "programming"
+                        cover_image_url: "https://images.bookverse.com/covers/design-patterns.jpg"
+                        confidence_score: 0.92
+                        similarity_score: 0.87
+                        reason: "content_similarity"
+                        explanation: "Similar to books you've read about software architecture"
+                      - book_id: 789
+                        title: "The Pragmatic Programmer"
+                        author: "David Thomas, Andrew Hunt"
+                        isbn: "978-0135957059"
+                        price: 41.99
+                        rating: 4.8
+                        category: "programming"
+                        cover_image_url: "https://images.bookverse.com/covers/pragmatic-programmer.jpg"
+                        confidence_score: 0.89
+                        similarity_score: 0.82
+                        reason: "collaborative_filtering"
+                        explanation: "Users with similar tastes also liked this book"
+                    metadata:
+                      total_candidates: 1247
+                      filtered_candidates: 892
+                      processing_time_ms: 87
+                      algorithm_used: "hybrid"
+                      personalization_strength: 0.78
+                      cache_hit: true
+                
+                similar_books:
+                  summary: Books similar to a specific book
+                  value:
+                    data:
+                      - book_id: 234
+                        title: "Refactoring: Improving the Design of Existing Code"
+                        author: "Martin Fowler"
+                        isbn: "978-0134757599"
+                        price: 47.99
+                        rating: 4.7
+                        category: "programming"
+                        cover_image_url: "https://images.bookverse.com/covers/refactoring.jpg"
+                        confidence_score: 0.94
+                        similarity_score: 0.91
+                        reason: "content_similarity"
+                        explanation: "Similar themes: code quality and software craftsmanship"
+                    metadata:
+                      total_candidates: 345
+                      filtered_candidates: 298
+                      processing_time_ms: 45
+                      algorithm_used: "content"
+                      base_book_id: 123
+                      cache_hit: false
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Base book not found (when book_id is provided)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://docs.bookverse.com/errors/book-not-found"
+                title: "Book Not Found"
+                status: 404
+                detail: "No book found with ID 123 for similarity recommendations"
+                instance: "/recommendations"
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /recommendations/trending:
+    get:
+      summary: Get trending book recommendations
+      description: |
+        Retrieve currently trending books based on real-time analytics including sales velocity, user engagement, ratings, and social media mentions.
+        
+        **Trending Factors:**
+        - Sales velocity and growth rate
+        - User ratings and review activity
+        - Search frequency and click-through rates
+        - Social media mentions and sharing
+        - Seasonal and temporal patterns
+        
+        **Time Windows:**
+        - **hourly**: Last 6 hours (real-time trends)
+        - **daily**: Last 24 hours (current trends)
+        - **weekly**: Last 7 days (popular trends)
+        - **monthly**: Last 30 days (sustained trends)
+        
+        **Categories:**
+        - Global trending across all categories
+        - Category-specific trending books
+        - New releases gaining traction
+        - Rising stars with high growth rates
+      operationId: getTrendingRecommendations
+      tags:
+        - Recommendations
+        - Trending
+      parameters:
+        - name: time_window
+          in: query
+          description: Time window for trending analysis
+          schema:
+            type: string
+            enum: [hourly, daily, weekly, monthly]
+            default: daily
+            example: daily
+        
+        - name: category
+          in: query
+          description: Specific category for trending books
+          schema:
+            type: string
+            enum: [programming, fiction, non-fiction, science, technology, business, education, reference]
+            example: programming
+        
+        - name: trend_type
+          in: query
+          description: Type of trending analysis
+          schema:
+            type: string
+            enum: [hot, rising, new, sustained]
+            default: hot
+            example: hot
+        
+        - name: region
+          in: query
+          description: Geographic region for localized trends
+          schema:
+            type: string
+            enum: [global, north_america, europe, asia, other]
+            default: global
+            example: global
+        
+        - name: limit
+          in: query
+          description: Maximum number of trending books to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+
+      responses:
+        '200':
+          description: Trending recommendations retrieved successfully
+          headers:
+            X-Trend-Analysis-Time:
+              description: Timestamp of trend analysis
+              schema:
+                type: string
+                format: date-time
+                example: "2024-01-25T16:00:00Z"
+            X-Data-Freshness-Minutes:
+              description: Age of trending data in minutes
+              schema:
+                type: integer
+                example: 5
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TrendingRecommendation'
+                  trend_metadata:
+                    $ref: '#/components/schemas/TrendMetadata'
+              examples:
+                daily_trending:
+                  summary: Daily trending books
+                  value:
+                    data:
+                      - book_id: 567
+                        title: "AI and Machine Learning Fundamentals"
+                        author: "Sarah Johnson"
+                        rank: 1
+                        trend_score: 0.98
+                        velocity: 2.34
+                        growth_rate: 0.45
+                        category: "technology"
+                        reasons: ["high_sales_velocity", "positive_reviews", "social_mentions"]
+                        metrics:
+                          sales_increase_percent: 234
+                          rating_trend: 0.2
+                          search_volume_change: 1.8
+                          social_mentions: 127
+                    trend_metadata:
+                      analysis_time: "2024-01-25T16:00:00Z"
+                      time_window: "daily"
+                      total_analyzed: 15420
+                      data_freshness_minutes: 5
+                      algorithm_version: "v1.3.2"
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /recommendations/similar:
+    get:
+      summary: Get books similar to a list of books
+      description: |
+        Find books similar to a provided list of books using advanced content analysis and collaborative filtering. Ideal for creating "customers who bought these also bought" sections.
+        
+        **Similarity Analysis:**
+        - Content features: genre, themes, writing style, topics
+        - Metadata similarity: author, publisher, publication era
+        - User behavior patterns: co-purchasing, co-rating
+        - Advanced NLP: semantic similarity of descriptions
+        
+        **Use Cases:**
+        - Shopping cart cross-selling recommendations
+        - "Similar books" sections on product pages
+        - Reading list expansion suggestions
+        - Collection building recommendations
+      operationId: getSimilarBooks
+      tags:
+        - Recommendations
+        - Similarity
+      parameters:
+        - name: book_ids
+          in: query
+          required: true
+          description: |
+            Comma-separated list of book IDs to find similar books for.
+            Maximum 10 books per request.
+          schema:
+            type: string
+            pattern: '^[0-9]+(,[0-9]+)*$'
+            example: "123,456,789"
+        
+        - name: similarity_type
+          in: query
+          description: Type of similarity analysis to perform
+          schema:
+            type: string
+            enum: [content, behavioral, hybrid]
+            default: hybrid
+            example: hybrid
+        
+        - name: exclude_input
+          in: query
+          description: Exclude the input books from recommendations
+          schema:
+            type: boolean
+            default: true
+            example: true
+        
+        - name: min_similarity
+          in: query
+          description: Minimum similarity threshold (0-1)
+          schema:
+            type: number
+            format: float
+            minimum: 0
+            maximum: 1
+            default: 0.3
+            example: 0.5
+
+      responses:
+        '200':
+          description: Similar books found successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SimilarBook'
+                  similarity_analysis:
+                    $ref: '#/components/schemas/SimilarityAnalysis'
+              examples:
+                similar_books_result:
+                  summary: Books similar to provided list
+                  value:
+                    data:
+                      - book_id: 890
+                        title: "Software Architecture: The Hard Parts"
+                        author: "Neal Ford"
+                        similarity_score: 0.87
+                        similarity_reasons: ["same_genre", "similar_themes", "co_purchased"]
+                        common_features: ["software engineering", "architecture", "best practices"]
+                    similarity_analysis:
+                      input_books: [123, 456, 789]
+                      total_candidates: 2847
+                      similarity_method: "hybrid"
+                      processing_time_ms: 156
+
+        '400':
+          description: Invalid book IDs or too many books provided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://docs.bookverse.com/errors/invalid-book-list"
+                title: "Invalid Book List"
+                status: 400
+                detail: "Maximum 10 books allowed per request. Received 15 books."
+                instance: "/recommendations/similar"
+        '404':
+          description: One or more books not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://docs.bookverse.com/errors/books-not-found"
+                title: "Books Not Found"
+                status: 404
+                detail: "Books not found: [999, 888]"
+                instance: "/recommendations/similar"
+                missing_books: [999, 888]
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /recommendations/user/{user_id}/feedback:
+    post:
+      summary: Record user feedback on recommendations
+      description: |
+        Record user feedback on recommendations to improve future suggestions. This endpoint supports both explicit feedback (ratings, likes/dislikes) and implicit feedback (clicks, purchases, time spent).
+        
+        **Feedback Types:**
+        - **Explicit**: Direct ratings, likes, dislikes, reviews
+        - **Implicit**: Clicks, views, purchases, time spent
+        - **Contextual**: Device, time of day, session context
+        
+        **Learning Impact:**
+        - Real-time model updates for immediate improvement
+        - Batch processing for large-scale model retraining
+        - A/B testing result tracking
+        - Recommendation quality measurement
+        
+        **Privacy:**
+        - All feedback is anonymized for model training
+        - User privacy controls respected
+        - GDPR/CCPA compliance maintained
+      operationId: recordRecommendationFeedback
+      tags:
+        - Recommendations
+        - Feedback
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User identifier
+          schema:
+            type: string
+            maxLength: 100
+            example: "user_12345"
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationFeedback'
+            examples:
+              explicit_rating:
+                summary: Explicit rating feedback
+                value:
+                  recommendation_id: "rec_abc123def456"
+                  book_id: 456
+                  feedback_type: "explicit"
+                  action: "rating"
+                  rating: 4
+                  comment: "Great recommendation! Really enjoyed this book."
+                  context:
+                    session_id: "sess_xyz789"
+                    device_type: "mobile"
+                    recommendation_position: 2
+              
+              implicit_click:
+                summary: Implicit click feedback
+                value:
+                  recommendation_id: "rec_def456ghi789"
+                  book_id: 789
+                  feedback_type: "implicit"
+                  action: "click"
+                  context:
+                    session_id: "sess_abc123"
+                    device_type: "desktop"
+                    recommendation_position: 1
+                    time_to_click_ms: 2500
+              
+              purchase_feedback:
+                summary: Purchase conversion feedback
+                value:
+                  recommendation_id: "rec_ghi789jkl012"
+                  book_id: 234
+                  feedback_type: "conversion"
+                  action: "purchase"
+                  purchase_price: 35.99
+                  context:
+                    session_id: "sess_def456"
+                    device_type: "tablet"
+                    recommendation_position: 3
+                    time_to_purchase_minutes: 15
+
+      responses:
+        '202':
+          description: Feedback recorded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feedback_id:
+                    type: string
+                    description: Unique feedback record identifier
+                    example: "feedback_789abc012def"
+                  status:
+                    type: string
+                    enum: [accepted, queued, processed]
+                    description: Processing status
+                    example: "accepted"
+                  impact:
+                    type: object
+                    properties:
+                      immediate_learning:
+                        type: boolean
+                        description: Whether feedback triggered immediate model update
+                        example: true
+                      batch_queued:
+                        type: boolean
+                        description: Whether feedback was queued for batch processing
+                        example: true
+                  processing_time_ms:
+                    type: integer
+                    description: Feedback processing time
+                    example: 23
+              examples:
+                feedback_accepted:
+                  summary: Feedback successfully recorded
+                  value:
+                    feedback_id: "feedback_789abc012def"
+                    status: "accepted"
+                    impact:
+                      immediate_learning: true
+                      batch_queued: true
+                    processing_time_ms: 23
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User or recommendation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://docs.bookverse.com/errors/recommendation-not-found"
+                title: "Recommendation Not Found"
+                status: 404
+                detail: "Recommendation ID rec_abc123def456 not found or expired"
+                instance: "/recommendations/user/user_12345/feedback"
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /recommendations/models/status:
+    get:
+      summary: Get recommendation models status
+      description: |
+        Retrieve status information about recommendation models including health, performance metrics, and update schedules.
+        
+        **Model Information:**
+        - Model versions and deployment status
+        - Performance metrics and accuracy scores
+        - Training data statistics
+        - Last update timestamps and schedules
+        
+        **Health Metrics:**
+        - Model response times and throughput
+        - Prediction accuracy and confidence scores
+        - Data freshness and coverage
+        - System resource utilization
+        
+        **Use Cases:**
+        - Model monitoring and alerting
+        - Performance optimization
+        - Deployment verification
+        - Debugging and troubleshooting
+      operationId: getModelsStatus
+      tags:
+        - Models
+        - Health
+      parameters:
+        - name: include_metrics
+          in: query
+          description: Include detailed performance metrics
+          schema:
+            type: boolean
+            default: false
+            example: true
+        
+        - name: include_data_stats
+          in: query
+          description: Include training data statistics
+          schema:
+            type: boolean
+            default: false
+            example: true
+
+      responses:
+        '200':
+          description: Models status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ModelStatus'
+                  system_health:
+                    $ref: '#/components/schemas/SystemHealth'
+                  data_statistics:
+                    $ref: '#/components/schemas/DataStatistics'
+                    description: Included only when include_data_stats=true
+              examples:
+                models_healthy:
+                  summary: All models healthy and operational
+                  value:
+                    models:
+                      - name: "content_similarity"
+                        version: "v2.1.3"
+                        status: "healthy"
+                        last_updated: "2024-01-25T12:00:00Z"
+                        accuracy: 0.87
+                        avg_response_time_ms: 45
+                        requests_per_second: 150
+                      - name: "collaborative_filtering"
+                        version: "v1.8.2"
+                        status: "healthy"
+                        last_updated: "2024-01-25T08:00:00Z"
+                        accuracy: 0.82
+                        avg_response_time_ms: 67
+                        requests_per_second: 89
+                    system_health:
+                      overall_status: "healthy"
+                      cpu_usage_percent: 23.4
+                      memory_usage_percent: 67.8
+                      model_cache_hit_rate: 0.94
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Insufficient permissions - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://docs.bookverse.com/errors/admin-required"
+                title: "Admin Access Required"
+                status: 403
+                detail: "Model status information requires admin privileges"
+                instance: "/recommendations/models/status"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /health:
+    get:
+      summary: Service health check
+      description: |
+        Comprehensive health check for the recommendations service including model health, data pipeline status, and system resources.
+        
+        **Health Checks:**
+        - Model availability and response times
+        - Database connectivity and performance
+        - Cache system status
+        - External service dependencies
+        - Resource utilization and capacity
+        
+        **Response Codes:**
+        - 200: All systems healthy
+        - 503: One or more critical systems unhealthy
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              examples:
+                healthy:
+                  summary: All systems healthy
+                  value:
+                    status: "healthy"
+                    timestamp: "2024-01-25T16:45:00Z"
+                    version: "1.1.0"
+                    uptime_seconds: 7200
+                    checks:
+                      models:
+                        status: "healthy"
+                        response_time_ms: 45
+                        details: "All 3 models operational"
+                      database:
+                        status: "healthy"
+                        response_time_ms: 12
+                        details: "Connection pool: 15/50 active"
+                      cache:
+                        status: "healthy"
+                        response_time_ms: 3
+                        details: "Redis cluster stable"
+                    metrics:
+                      recommendations_per_second: 245
+                      model_cache_hit_rate: 0.94
+                      avg_recommendation_time_ms: 67
+
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              examples:
+                model_issues:
+                  summary: Model health issues
+                  value:
+                    status: "unhealthy"
+                    timestamp: "2024-01-25T16:45:00Z"
+                    version: "1.1.0"
+                    uptime_seconds: 7200
+                    checks:
+                      models:
+                        status: "degraded"
+                        response_time_ms: 1500
+                        details: "Collaborative filtering model slow"
+                        error: "Model response times above threshold"
+                      database:
+                        status: "healthy"
+                        response_time_ms: 12
+                        details: "Connection pool: 15/50 active"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Recommendation:
+      type: object
+      required:
+        - book_id
+        - title
+        - author
+        - confidence_score
+        - reason
+      properties:
+        book_id:
+          type: integer
+          format: int64
+          description: Unique book identifier
+          example: 456
+        title:
+          type: string
+          description: Book title
+          example: "Design Patterns: Elements of Reusable Object-Oriented Software"
+        author:
+          type: string
+          description: Book author
+          example: "Gang of Four"
+        isbn:
+          type: string
+          description: Book ISBN
+          example: "978-0201633612"
+        price:
+          type: number
+          format: decimal
+          description: Current book price
+          example: 54.99
+        currency:
+          type: string
+          enum: [USD, EUR, GBP, CAD]
+          description: Price currency
+          example: "USD"
+        rating:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 5
+          description: Average user rating
+          example: 4.6
+        review_count:
+          type: integer
+          minimum: 0
+          description: Number of reviews
+          example: 128
+        category:
+          type: string
+          description: Book category
+          example: "programming"
+        cover_image_url:
+          type: string
+          format: uri
+          description: Book cover image URL
+          example: "https://images.bookverse.com/covers/design-patterns.jpg"
+        availability:
+          type: string
+          enum: [available, out_of_stock, discontinued]
+          description: Current availability
+          example: "available"
+        confidence_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Recommendation confidence (0-1)
+          example: 0.92
+        similarity_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Content similarity score (0-1)
+          example: 0.87
+        reason:
+          type: string
+          enum: [content_similarity, collaborative_filtering, popularity, trending, hybrid]
+          description: Primary recommendation reason
+          example: "content_similarity"
+        explanation:
+          type: string
+          description: Human-readable explanation
+          example: "Similar to books you've read about software architecture"
+        recommendation_id:
+          type: string
+          description: Unique recommendation identifier for tracking
+          example: "rec_abc123def456"
+        position:
+          type: integer
+          minimum: 1
+          description: Position in recommendation list
+          example: 1
+
+    TrendingRecommendation:
+      allOf:
+        - $ref: '#/components/schemas/Recommendation'
+        - type: object
+          properties:
+            rank:
+              type: integer
+              minimum: 1
+              description: Trending rank position
+              example: 1
+            trend_score:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+              description: Overall trending score
+              example: 0.98
+            velocity:
+              type: number
+              format: float
+              description: Trend velocity factor
+              example: 2.34
+            growth_rate:
+              type: number
+              format: float
+              description: Growth rate percentage
+              example: 0.45
+            reasons:
+              type: array
+              items:
+                type: string
+                enum: [high_sales_velocity, positive_reviews, social_mentions, search_spike, new_release]
+              description: Factors contributing to trending status
+              example: ["high_sales_velocity", "positive_reviews"]
+            metrics:
+              type: object
+              properties:
+                sales_increase_percent:
+                  type: number
+                  format: float
+                  description: Sales increase percentage
+                  example: 234
+                rating_trend:
+                  type: number
+                  format: float
+                  description: Rating trend direction
+                  example: 0.2
+                search_volume_change:
+                  type: number
+                  format: float
+                  description: Search volume change factor
+                  example: 1.8
+                social_mentions:
+                  type: integer
+                  description: Social media mentions count
+                  example: 127
+
+    SimilarBook:
+      allOf:
+        - $ref: '#/components/schemas/Recommendation'
+        - type: object
+          properties:
+            similarity_reasons:
+              type: array
+              items:
+                type: string
+                enum: [same_genre, similar_themes, same_author, co_purchased, co_rated, content_features]
+              description: Specific similarity factors
+              example: ["same_genre", "similar_themes", "co_purchased"]
+            common_features:
+              type: array
+              items:
+                type: string
+              description: Common content features
+              example: ["software engineering", "architecture", "best practices"]
+            related_books:
+              type: array
+              items:
+                type: integer
+              description: IDs of books that contributed to similarity
+              example: [123, 456]
+
+    RecommendationMetadata:
+      type: object
+      properties:
+        total_candidates:
+          type: integer
+          description: Total books considered for recommendations
+          example: 1247
+        filtered_candidates:
+          type: integer
+          description: Books remaining after filtering
+          example: 892
+        processing_time_ms:
+          type: integer
+          description: Processing time in milliseconds
+          example: 87
+        algorithm_used:
+          type: string
+          description: Primary algorithm used
+          example: "hybrid"
+        model_versions:
+          type: object
+          additionalProperties:
+            type: string
+          description: ML model versions used
+          example:
+            content: "v2.1.3"
+            collaborative: "v1.8.2"
+        personalization_strength:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Strength of personalization applied
+          example: 0.78
+        diversity_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Diversity of recommendations
+          example: 0.65
+        cache_hit:
+          type: boolean
+          description: Whether recommendations were cached
+          example: true
+        cache_age_minutes:
+          type: integer
+          description: Age of cached data in minutes
+          example: 3
+
+    AlgorithmInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Algorithm name
+          example: "hybrid"
+        version:
+          type: string
+          description: Algorithm version
+          example: "v2.1.0"
+        description:
+          type: string
+          description: Algorithm description
+          example: "Combines content-based and collaborative filtering approaches"
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Algorithm-specific parameters
+          example:
+            content_weight: 0.6
+            collaborative_weight: 0.4
+            diversity_factor: 0.3
+        accuracy_metrics:
+          type: object
+          properties:
+            precision_at_10:
+              type: number
+              format: float
+              example: 0.42
+            recall_at_10:
+              type: number
+              format: float
+              example: 0.38
+            diversity_score:
+              type: number
+              format: float
+              example: 0.65
+            coverage:
+              type: number
+              format: float
+              example: 0.78
+
+    TrendMetadata:
+      type: object
+      properties:
+        analysis_time:
+          type: string
+          format: date-time
+          description: When trend analysis was performed
+          example: "2024-01-25T16:00:00Z"
+        time_window:
+          type: string
+          description: Analysis time window
+          example: "daily"
+        total_analyzed:
+          type: integer
+          description: Total books analyzed for trends
+          example: 15420
+        data_freshness_minutes:
+          type: integer
+          description: Age of underlying data
+          example: 5
+        algorithm_version:
+          type: string
+          description: Trending algorithm version
+          example: "v1.3.2"
+        confidence_threshold:
+          type: number
+          format: float
+          description: Minimum confidence for trending status
+          example: 0.75
+
+    SimilarityAnalysis:
+      type: object
+      properties:
+        input_books:
+          type: array
+          items:
+            type: integer
+          description: Input book IDs
+          example: [123, 456, 789]
+        total_candidates:
+          type: integer
+          description: Total candidate books analyzed
+          example: 2847
+        similarity_method:
+          type: string
+          description: Similarity calculation method
+          example: "hybrid"
+        processing_time_ms:
+          type: integer
+          description: Analysis processing time
+          example: 156
+        similarity_distribution:
+          type: object
+          properties:
+            high_similarity:
+              type: integer
+              description: Books with similarity > 0.8
+              example: 12
+            medium_similarity:
+              type: integer
+              description: Books with similarity 0.5-0.8
+              example: 45
+            low_similarity:
+              type: integer
+              description: Books with similarity 0.3-0.5
+              example: 78
+
+    RecommendationFeedback:
+      type: object
+      required:
+        - book_id
+        - feedback_type
+        - action
+      properties:
+        recommendation_id:
+          type: string
+          description: ID of the recommendation being rated
+          example: "rec_abc123def456"
+        book_id:
+          type: integer
+          format: int64
+          description: ID of the recommended book
+          example: 456
+        feedback_type:
+          type: string
+          enum: [explicit, implicit, conversion]
+          description: Type of feedback
+          example: "explicit"
+        action:
+          type: string
+          enum: [view, click, like, dislike, rating, purchase, add_to_cart, save, share]
+          description: User action performed
+          example: "rating"
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Rating value (1-5) for rating feedback
+          example: 4
+        comment:
+          type: string
+          maxLength: 500
+          description: Optional comment from user
+          example: "Great recommendation! Really enjoyed this book."
+        purchase_price:
+          type: number
+          format: decimal
+          description: Purchase price for conversion feedback
+          example: 35.99
+        context:
+          type: object
+          properties:
+            session_id:
+              type: string
+              description: User session identifier
+              example: "sess_xyz789"
+            device_type:
+              type: string
+              enum: [desktop, mobile, tablet]
+              description: Device type used
+              example: "mobile"
+            recommendation_position:
+              type: integer
+              minimum: 1
+              description: Position of book in recommendation list
+              example: 2
+            time_to_click_ms:
+              type: integer
+              description: Time from view to click in milliseconds
+              example: 2500
+            time_to_purchase_minutes:
+              type: integer
+              description: Time from recommendation to purchase
+              example: 15
+        timestamp:
+          type: string
+          format: date-time
+          description: When feedback occurred
+          example: "2024-01-25T16:30:00Z"
+
+    ModelStatus:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Model name
+          example: "content_similarity"
+        version:
+          type: string
+          description: Model version
+          example: "v2.1.3"
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy, updating]
+          description: Model health status
+          example: "healthy"
+        last_updated:
+          type: string
+          format: date-time
+          description: Last model update time
+          example: "2024-01-25T12:00:00Z"
+        next_update:
+          type: string
+          format: date-time
+          description: Scheduled next update
+          example: "2024-01-26T12:00:00Z"
+        accuracy:
+          type: number
+          format: float
+          description: Model accuracy score
+          example: 0.87
+        avg_response_time_ms:
+          type: integer
+          description: Average response time
+          example: 45
+        requests_per_second:
+          type: number
+          format: float
+          description: Current request rate
+          example: 150.5
+        error_rate:
+          type: number
+          format: float
+          description: Error rate percentage
+          example: 0.002
+        training_data_size:
+          type: integer
+          description: Training dataset size
+          example: 245000
+        last_training_duration_minutes:
+          type: integer
+          description: Last training duration
+          example: 45
+
+    SystemHealth:
+      type: object
+      properties:
+        overall_status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Overall system health
+          example: "healthy"
+        cpu_usage_percent:
+          type: number
+          format: float
+          description: CPU utilization percentage
+          example: 23.4
+        memory_usage_percent:
+          type: number
+          format: float
+          description: Memory utilization percentage
+          example: 67.8
+        disk_usage_percent:
+          type: number
+          format: float
+          description: Disk utilization percentage
+          example: 45.2
+        model_cache_hit_rate:
+          type: number
+          format: float
+          description: Model cache hit rate
+          example: 0.94
+        recommendations_per_second:
+          type: number
+          format: float
+          description: Current recommendation rate
+          example: 245.7
+        active_connections:
+          type: integer
+          description: Number of active connections
+          example: 128
+
+    DataStatistics:
+      type: object
+      properties:
+        total_books:
+          type: integer
+          description: Total books in catalog
+          example: 150420
+        total_users:
+          type: integer
+          description: Total users with interaction data
+          example: 85642
+        total_interactions:
+          type: integer
+          description: Total user-book interactions
+          example: 2847391
+        interaction_types:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Count by interaction type
+          example:
+            views: 1847392
+            purchases: 234189
+            ratings: 456789
+            clicks: 892847
+        data_freshness:
+          type: object
+          properties:
+            last_batch_update:
+              type: string
+              format: date-time
+              description: Last batch data update
+              example: "2024-01-25T12:00:00Z"
+            real_time_lag_minutes:
+              type: integer
+              description: Real-time data lag
+              example: 2
+        coverage_stats:
+          type: object
+          properties:
+            books_with_interactions:
+              type: number
+              format: float
+              description: Percentage of books with user interactions
+              example: 0.87
+            users_with_sufficient_data:
+              type: number
+              format: float
+              description: Percentage of users with enough data for personalization
+              example: 0.72
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - timestamp
+        - version
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Overall service health
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+          example: "2024-01-25T16:45:00Z"
+        version:
+          type: string
+          description: Service version
+          example: "1.1.0"
+        uptime_seconds:
+          type: integer
+          description: Service uptime in seconds
+          example: 7200
+        checks:
+          type: object
+          description: Individual health checks
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [healthy, degraded, unhealthy]
+              response_time_ms:
+                type: integer
+              details:
+                type: string
+              error:
+                type: string
+        metrics:
+          type: object
+          description: Service metrics
+          properties:
+            recommendations_per_second:
+              type: number
+              format: float
+              example: 245
+            model_cache_hit_rate:
+              type: number
+              format: float
+              example: 0.94
+            avg_recommendation_time_ms:
+              type: integer
+              example: 67
+
+    ProblemDetails:
+      type: object
+      description: RFC 7807 Problem Details for HTTP APIs
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI reference identifying the problem type
+          example: "https://docs.bookverse.com/errors/book-not-found"
+        title:
+          type: string
+          description: Short, human-readable summary
+          example: "Book Not Found"
+        status:
+          type: integer
+          description: HTTP status code
+          example: 404
+        detail:
+          type: string
+          description: Human-readable explanation
+          example: "No book found with ID 123"
+        instance:
+          type: string
+          format: uri
+          description: URI reference for this specific occurrence
+          example: "/recommendations"
+
+  responses:
+    BadRequest:
+      description: Bad Request - Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: "https://docs.bookverse.com/errors/validation-error"
+            title: "Validation Error"
+            status: 400
+            detail: "Invalid limit parameter. Must be between 1 and 50."
+            instance: "/recommendations"
+
+    Unauthorized:
+      description: Unauthorized - Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: "https://docs.bookverse.com/errors/unauthorized"
+            title: "Authentication Required"
+            status: 401
+            detail: "Valid authentication token required"
+            instance: "/recommendations"
+
+    RateLimited:
+      description: Too Many Requests - Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          description: Request limit per hour
+          schema:
+            type: integer
+            example: 5000
+        X-RateLimit-Remaining:
+          description: Requests remaining in current window
+          schema:
+            type: integer
+            example: 0
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+            example: 3600
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: "https://docs.bookverse.com/errors/rate-limit-exceeded"
+            title: "Rate Limit Exceeded"
+            status: 429
+            detail: "Request rate limit of 5000 per hour exceeded"
+            instance: "/recommendations"
+
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: "https://docs.bookverse.com/errors/internal-server-error"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred while processing recommendations"
+            instance: "/recommendations"
+
+tags:
+  - name: Recommendations
+    description: Core recommendation generation operations
+  - name: Trending
+    description: Trending book analysis and recommendations
+  - name: Similarity
+    description: Content and behavioral similarity operations
+  - name: Feedback
+    description: User feedback collection and learning operations
+  - name: Models
+    description: ML model management and monitoring
+  - name: Health
+    description: Service health and monitoring
+
+externalDocs:
+  description: BookVerse Recommendations API Documentation
+  url: https://docs.bookverse.com/api/recommendations

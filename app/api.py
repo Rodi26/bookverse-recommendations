@@ -5,7 +5,6 @@ from typing import List, Set, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, Depends
 
-# Import standardized logging utilities
 from bookverse_core.utils.logging import (
     get_logger,
     log_request_start,
@@ -16,7 +15,6 @@ from bookverse_core.utils.logging import (
 
 logger = get_logger(__name__)
 
-# Import bookverse-core response models and validation utilities
 from bookverse_core.api.responses import (
     SuccessResponse, 
     PaginatedResponse,
@@ -53,24 +51,19 @@ from .clients import InventoryClient
 router = APIRouter()
 
 def get_indexer_with_request_id(request_id: Optional[str] = None) -> Indexer:
-    """Create indexer with request ID for HTTP client tracing."""
     client = InventoryClient(request_id=request_id)
     return Indexer(client=client)
 
-# Default indexer for backwards compatibility
 indexer = Indexer()
 
 
 @router.get("/api/v1/recommendations/similar", response_model=SuccessResponse[List[RecommendationItem]])
 def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Request = None):
-    """Return similar books to the provided seed `book_id` using simple rule-based scoring."""
     request_id = getattr(request.state, 'request_id', None) if request else None
     start_time = datetime.utcnow()
     
-    # Log request start with standardized format
     log_request_start(logger, "GET", f"/api/v1/recommendations/similar?book_id={book_id}&limit={limit}", request_id)
     
-    # Validate and sanitize book_id parameter using standardized error handling
     try:
         sanitized_book_id = sanitize_string(book_id, max_length=100)
         if not sanitized_book_id:
@@ -83,14 +76,12 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Requ
     except ValueError as e:
         raise_validation_error(str(e), field="book_id", value=book_id)
     
-    # Get indices with proper error handling
     try:
         idx = get_indexer_with_request_id(request_id).ensure_indices()
     except Exception as e:
         context = create_error_context(request_id=request_id, operation="ensure_indices")
         raise_upstream_error("inventory", e, "Failed to load book catalog")
     
-    # Check if book exists
     if book_id not in idx.book_by_id:
         raise_not_found_error(
             "book", 
@@ -98,19 +89,16 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Requ
             f"Book '{book_id}' not found in catalog of {len(idx.book_by_id)} books"
         )
 
-    # Generate recommendations with error handling
     try:
         seed = idx.book_by_id[book_id]
         candidate_ids: Set[str] = set()
         
-        # Collect candidates from genres and authors
         for g in seed.genres:
             candidate_ids |= idx.genre_to_book_ids.get(g, set())
         for a in seed.authors:
             candidate_ids |= idx.author_to_book_ids.get(a, set())
         candidate_ids.discard(book_id)
 
-        # Score and rank candidates
         scored: List[RecommendationItem] = []
         for cid in candidate_ids:
             try:
@@ -120,20 +108,16 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Requ
                     continue
                 scored.append(build_recommendation_item(b, s, factors))
             except Exception as e:
-                # Log individual scoring errors but continue processing
                 logger.warning(f"Failed to score book {cid}: {e}", extra={"request_id": request_id})
                 continue
 
         ranked = sorted(scored, key=lambda r: r.score, reverse=True)[:limit]
         
-        # Log successful completion
         duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
         log_request_end(logger, "GET", f"/api/v1/recommendations/similar", 200, duration_ms, request_id)
         
-        # Log demo-specific information
         log_demo_info(logger, f"Generated {len(ranked)} similar recommendations for book '{seed.title}' using rule-based scoring")
         
-        # Use standardized success response with metadata
         return create_success_response(
             data=ranked,
             message=f"Found {len(ranked)} similar books for '{seed.title}'",
@@ -141,7 +125,6 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Requ
         )
         
     except Exception as e:
-        # Log error with context using standardized logging
         log_error_with_context(
             logger, 
             e, 
@@ -149,7 +132,6 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Requ
             request_id=request_id
         )
         
-        # Handle unexpected errors in recommendation generation
         context = create_error_context(
             request_id=request_id,
             book_id=book_id,
@@ -160,10 +142,8 @@ def get_similar(book_id: str, limit: int = Query(10, ge=1, le=50), request: Requ
 
 @router.post("/api/v1/recommendations/personalized", response_model=SuccessResponse[List[RecommendationItem]])
 def get_personalized(payload: PersonalizedRequest, request: Request = None):
-    """Return personalized recommendations based on optional seeds/context or trending fallback."""
     request_id = getattr(request.state, 'request_id', None) if request else None
     
-    # Get indices with proper error handling
     try:
         idx = get_indexer_with_request_id(request_id).ensure_indices()
     except Exception as e:
@@ -182,14 +162,12 @@ def get_personalized(payload: PersonalizedRequest, request: Request = None):
     message_context = "personalized"
     
     if not seed_books:
-        # Try feature seeds
         feature_candidates: Set[str] = set()
         for g in payload.seed_genres or []:
             feature_candidates |= idx.genre_to_book_ids.get(g, set())
         for a in payload.seed_authors or []:
             feature_candidates |= idx.author_to_book_ids.get(a, set())
         if not feature_candidates:
-            # DEMO PURPOSE: Fallback to trending by popularity when no personalization data available
             ranked_ids = sorted(idx.book_by_id.keys(), key=lambda i: idx.popularity.get(i, 0.0), reverse=True)
             top_ids = ranked_ids[: payload.limit or 10]
             recs = [build_recommendation_item(idx.book_by_id[i], idx.popularity.get(i, 0.0), {"popularity": idx.popularity.get(i, 0.0)}) for i in top_ids if idx.book_by_id[i].availability.in_stock]
@@ -198,11 +176,9 @@ def get_personalized(payload: PersonalizedRequest, request: Request = None):
                 message=f"Generated {len(recs)} trending recommendations (no personalization data available)",
                 request_id=getattr(request.state, 'request_id', None) if request else None
             )
-        # Score with pseudo seeds from features
         seed_books = [idx.book_by_id[i] for i in list(feature_candidates)[:3] if i in idx.book_by_id]
         message_context = "feature-based"
 
-    # Collect candidates from seeds
     candidate_ids: Set[str] = set()
     for sb in seed_books:
         for g in sb.genres:
@@ -234,21 +210,16 @@ def get_trending(
     pagination: PaginationParams = Depends(create_pagination_params),
     request: Request = None
 ):
-    """Return currently trending books based on recent stock_out popularity."""
     request_id = getattr(request.state, 'request_id', None) if request else None
     
-    # Get indices with proper error handling
     try:
         idx = get_indexer_with_request_id(request_id).ensure_indices()
     except Exception as e:
         context = create_error_context(request_id=request_id, operation="ensure_indices")
         raise_upstream_error("inventory", e, "Failed to load book catalog")
-    # Generate trending recommendations with bookverse-core pagination
     try:
-        # Get all trending books sorted by popularity
         ranked_ids = sorted(idx.book_by_id.keys(), key=lambda i: idx.popularity.get(i, 0.0), reverse=True)
         
-        # Filter to in-stock books first
         available_items: List[RecommendationItem] = []
         for bid in ranked_ids:
             try:
@@ -258,17 +229,14 @@ def get_trending(
                 s = idx.popularity.get(bid, 0.0)
                 available_items.append(build_recommendation_item(b, s, {"popularity": s}))
             except Exception as e:
-                # Log individual item errors but continue processing
                 logger.warning(f"Failed to process trending book {bid}: {e}", extra={"request_id": request_id})
                 continue
         
-        # Apply pagination to the available items
         total_items = len(available_items)
         start_idx = (pagination.page - 1) * pagination.size
         end_idx = start_idx + pagination.size
         paginated_items = available_items[start_idx:end_idx]
         
-        # Create pagination metadata
         pagination_meta = create_pagination_meta(
             page=pagination.page,
             size=pagination.size,
@@ -283,7 +251,6 @@ def get_trending(
         )
         
     except Exception as e:
-        # Handle unexpected errors in trending generation
         context = create_error_context(
             request_id=request_id,
             operation="generate_trending_recommendations"
@@ -293,17 +260,14 @@ def get_trending(
 
 @router.get("/api/v1/recommendations/health", response_model=HealthResponse)
 def recommendations_health():
-    """Basic health and cache freshness info for indices and popularity map."""
     idx = indexer.ensure_indices()
     ttl = int(os.getenv("RECO_TTL_SECONDS", "0") or "0")
     last_built = idx.last_built_at
     now = datetime.utcnow().timestamp()
     stale = ttl > 0 and (now - last_built) > ttl
     
-    # Determine overall health status
     status = "degraded" if stale else "healthy"
     
-    # Detailed health checks
     checks = {
         "indices": {
             "status": "healthy",

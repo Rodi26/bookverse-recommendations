@@ -1,7 +1,6 @@
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-# Import bookverse-core validation utilities
 from bookverse_core.utils.validation import (
     validate_uuid,
     sanitize_string,
@@ -10,14 +9,12 @@ from bookverse_core.utils.validation import (
 
 
 class Availability(BaseModel):
-    """Availability info mirrored from inventory responses."""
     quantity_available: int = Field(..., ge=0)
     in_stock: bool
     low_stock: bool
 
 
 class BookLite(BaseModel):
-    """Minimal book representation used in recommendations with enhanced validation."""
     id: str = Field(..., description="Unique book identifier")
     title: str = Field(..., min_length=1, max_length=500, description="Book title")
     authors: List[str] = Field(..., min_length=1, description="List of book authors")
@@ -29,11 +26,9 @@ class BookLite(BaseModel):
     @field_validator('id')
     @classmethod
     def validate_book_id(cls, v):
-        """Validate book ID format."""
         if not v or not isinstance(v, str):
             raise ValueError("Book ID must be a non-empty string")
         
-        # For demo purposes, accept various ID formats (UUID, alphanumeric, etc.)
         sanitized_id = sanitize_string(v, max_length=100)
         if len(sanitized_id) < 1:
             raise ValueError("Book ID cannot be empty after sanitization")
@@ -43,7 +38,6 @@ class BookLite(BaseModel):
     @field_validator('title')
     @classmethod
     def validate_title(cls, v):
-        """Validate and sanitize book title."""
         if not v or not isinstance(v, str):
             raise ValueError("Book title must be a non-empty string")
         
@@ -56,7 +50,6 @@ class BookLite(BaseModel):
     @field_validator('authors')
     @classmethod
     def validate_author_names(cls, v):
-        """Validate and sanitize author names."""
         if not isinstance(v, list):
             raise ValueError("Authors must be a list")
         
@@ -76,7 +69,6 @@ class BookLite(BaseModel):
     @field_validator('genres')
     @classmethod
     def validate_genre_names(cls, v):
-        """Validate and sanitize genre names."""
         if not isinstance(v, list):
             raise ValueError("Genres must be a list")
         
@@ -96,11 +88,9 @@ class BookLite(BaseModel):
     @field_validator('cover_image_url')
     @classmethod
     def validate_cover_url(cls, v):
-        """Validate cover image URL."""
         if not v or not isinstance(v, str):
             raise ValueError("Cover image URL must be a non-empty string")
         
-        # Basic URL validation for demo purposes
         sanitized_url = sanitize_string(v, max_length=1000)
         if not (sanitized_url.startswith('http://') or sanitized_url.startswith('https://')):
             raise ValueError("Cover image URL must start with http:// or https://")
@@ -109,7 +99,6 @@ class BookLite(BaseModel):
 
 
 class RecommendationItem(BaseModel):
-    """Recommendation item with score and factors for transparency."""
     id: str
     title: str
     authors: List[str]
@@ -122,13 +111,11 @@ class RecommendationItem(BaseModel):
 
 
 class RecommendationResponse(BaseModel):
-    """List wrapper with meta for pagination/traceability."""
     recommendations: List[RecommendationItem]
     meta: Dict[str, Any]
 
 
 class PersonalizedRequest(BaseModel):
-    """Optional context and seeds for personalized recommendations with enhanced validation."""
     user_id: Optional[str] = Field(None, description="User identifier for personalization")
     seed_book_ids: Optional[List[str]] = Field(None, max_length=20, description="Book IDs to base recommendations on")
     recently_viewed: Optional[List[str]] = Field(None, max_length=50, description="Recently viewed book IDs")
@@ -140,14 +127,12 @@ class PersonalizedRequest(BaseModel):
     @field_validator('user_id')
     @classmethod
     def validate_user_id(cls, v):
-        """Validate user ID format."""
         if v is None:
             return v
         
         if not isinstance(v, str):
             raise ValueError("User ID must be a string")
         
-        # Accept UUID format or sanitized string
         if validate_uuid(v):
             return v
         
@@ -160,7 +145,6 @@ class PersonalizedRequest(BaseModel):
     @field_validator('seed_book_ids', 'recently_viewed', 'cart_book_ids')
     @classmethod
     def validate_book_ids(cls, v):
-        """Validate book ID formats in lists."""
         if v is None:
             return v
         
@@ -183,7 +167,6 @@ class PersonalizedRequest(BaseModel):
     @field_validator('seed_genres', 'seed_authors')
     @classmethod
     def validate_seed_strings(cls, v):
-        """Validate genre and author names in seed lists."""
         if v is None:
             return v
         
@@ -205,7 +188,6 @@ class PersonalizedRequest(BaseModel):
     
     @model_validator(mode='after')
     def validate_at_least_one_input(self):
-        """Ensure at least one personalization input is provided."""
         personalization_fields = [
             'seed_book_ids', 'recently_viewed', 'cart_book_ids', 
             'seed_genres', 'seed_authors'
@@ -216,10 +198,7 @@ class PersonalizedRequest(BaseModel):
             for field in personalization_fields
         )
         
-        # Allow empty requests for fallback to trending
-        # This is just a warning in the demo
         if not has_input:
-            # In a real system, you might want to log this or handle differently
             pass
         
         return self

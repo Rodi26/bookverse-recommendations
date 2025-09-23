@@ -1,4 +1,3 @@
-"""BookVerse Recommendations application package."""
 
 __all__ = [
     "algorithms",

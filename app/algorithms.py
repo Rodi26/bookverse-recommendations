@@ -4,12 +4,7 @@ from .settings import get_weights, filter_out_of_stock_enabled
 
 
 def score_simple(seed_books: Iterable[BookLite], candidate: BookLite, popularity: Dict[str, float]) -> Tuple[float, Dict[str, float]]:
-    """Score a candidate book given seed books and a popularity prior.
 
-    Factors are a weighted sum of genre overlap, author overlap, and popularity.
-    When the `filter_out_of_stock_enabled` flag is on, out-of-stock candidates
-    receive a zero score.
-    """
     seed_genres = set(g for b in seed_books for g in b.genres)
     seed_authors = set(a for b in seed_books for a in b.authors)
     if filter_out_of_stock_enabled() and not candidate.availability.in_stock:
@@ -25,7 +20,6 @@ def score_simple(seed_books: Iterable[BookLite], candidate: BookLite, popularity
 
 
 def build_recommendation_item(b: BookLite, score: float, factors: Dict[str, float]) -> RecommendationItem:
-    """Construct a `RecommendationItem` from a `BookLite` and score details."""
     return RecommendationItem(
         id=b.id,
         title=b.title,

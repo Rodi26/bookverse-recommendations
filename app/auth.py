@@ -1,11 +1,5 @@
-"""
-JWT Authentication Module for BookVerse Recommendations Service
 
-Provides secure JWT token validation using OIDC/OAuth2 standards.
-Supports both development and production configurations.
 
-MIGRATION: Using bookverse-core for AuthUser and validate_jwt_token
-"""
 
 import logging
 import os
@@ -17,33 +11,27 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 import requests
 
-# Import bookverse-core authentication
 from bookverse_core.auth import AuthUser, validate_jwt_token
 
 logger = logging.getLogger(__name__)
 
-# Configuration
 OIDC_AUTHORITY = os.getenv("OIDC_AUTHORITY", "https://dev-auth.bookverse.com")
 OIDC_AUDIENCE = os.getenv("OIDC_AUDIENCE", "bookverse:api")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "RS256")
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() == "true"
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "false").lower() == "true"
 
-# Cache for OIDC configuration and keys
 _oidc_config = None
 _jwks = None
 _jwks_last_updated = None
-JWKS_CACHE_DURATION = 3600  # 1 hour in seconds
+JWKS_CACHE_DURATION = 3600
 
 security = HTTPBearer(auto_error=False)
 
 
-# AuthUser class now imported from bookverse-core
-# Removed local implementation to use consolidated version
 
 
 async def get_oidc_configuration() -> dict:
-    """Fetch OIDC configuration from the authority"""
     global _oidc_config
     
     if _oidc_config is None:
@@ -63,12 +51,10 @@ async def get_oidc_configuration() -> dict:
 
 
 async def get_jwks() -> dict:
-    """Fetch and cache JWKS (JSON Web Key Set) for token validation"""
     global _jwks, _jwks_last_updated
     
     current_time = datetime.now().timestamp()
     
-    # Check if we need to refresh the cache
     if (_jwks is None or 
         _jwks_last_updated is None or 
         current_time - _jwks_last_updated > JWKS_CACHE_DURATION):
@@ -93,14 +79,12 @@ async def get_jwks() -> dict:
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Authentication service unavailable"
                 )
-            # Use cached version if available
             logger.warning("⚠️ Using cached JWKS due to fetch failure")
     
     return _jwks
 
 
 def get_public_key(token_header: dict, jwks: dict) -> str:
-    """Extract the public key for token verification"""
     kid = token_header.get("kid")
     if not kid:
         raise ValueError("Token header missing 'kid' field")
@@ -112,20 +96,13 @@ def get_public_key(token_header: dict, jwks: dict) -> str:
     raise ValueError(f"No matching key found for kid: {kid}")
 
 
-# validate_jwt_token function now imported from bookverse-core
-# Removed local implementation to use consolidated version
 
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Optional[AuthUser]:
-    """FastAPI dependency to get the current authenticated user
     
-    Note: Authentication between K8s services is not in scope for this demo.
-    Returns a mock user for demo purposes.
-    """
     
-    # Demo: Return mock user since K8s inter-service auth is not in demo scope
     logger.debug("🎯 Demo mode: Using mock user (K8s inter-service auth not in scope)")
     return AuthUser({
         "sub": "demo-user",
@@ -139,7 +116,6 @@ async def get_current_user(
 async def require_authentication(
     user: Optional[AuthUser] = Depends(get_current_user)
 ) -> AuthUser:
-    """FastAPI dependency that requires authentication"""
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -150,7 +126,6 @@ async def require_authentication(
 
 
 def require_scope(scope: str):
-    """Factory function to create a dependency that requires a specific scope"""
     async def scope_checker(user: AuthUser = Depends(require_authentication)) -> AuthUser:
         if not user.has_scope(scope):
             raise HTTPException(
@@ -162,7 +137,6 @@ def require_scope(scope: str):
 
 
 def require_role(role: str):
-    """Factory function to create a dependency that requires a specific role"""
     async def role_checker(user: AuthUser = Depends(require_authentication)) -> AuthUser:
         if not user.has_role(role):
             raise HTTPException(
@@ -173,14 +147,12 @@ def require_role(role: str):
     return role_checker
 
 
-# Common dependencies for different access levels
 RequireAuth = Depends(require_authentication)
 RequireUser = Depends(get_current_user)
 RequireApiScope = Depends(require_scope("bookverse:api"))
 
 
 def get_auth_status() -> dict:
-    """Get authentication service status for health checks"""
     return {
         "auth_enabled": AUTH_ENABLED,
         "development_mode": DEVELOPMENT_MODE,
@@ -193,7 +165,6 @@ def get_auth_status() -> dict:
 
 
 async def test_auth_connection() -> dict:
-    """Test authentication service connectivity"""
     try:
         config = await get_oidc_configuration()
         jwks = await get_jwks()

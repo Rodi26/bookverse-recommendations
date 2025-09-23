@@ -10,7 +10,6 @@ logger = logging.getLogger("recommendations-worker")
 
 
 def main() -> None:
-    """Background refresher that periodically rebuilds indices and popularity."""
     indexer = Indexer()
     interval = int(os.getenv("RECO_WORKER_REFRESH_SECONDS", "60"))
     logger.info("Recommendations worker started. Refresh interval: %ss", interval)
