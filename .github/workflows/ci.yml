@@ -408,12 +408,12 @@ jobs:
           # 🧪 Testing framework: ML-specific testing dependencies
           # Installs pytest ecosystem optimized for algorithm testing
           jf pip install --no-deps --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
-            pytest==8.3.2 \      # Core testing framework for ML algorithms
-            pytest-cov==4.0.0 \  # Coverage reporting for algorithm code paths
-            coverage \            # Coverage analysis for ML code quality
-            pluggy \              # Plugin architecture for ML test extensions
-            iniconfig \           # Configuration management for test environments
-            packaging             # Package management for ML dependencies
+            pytest==8.3.2 \
+            pytest-cov==4.0.0 \
+            coverage \
+            pluggy \
+            iniconfig \
+            packaging
           
           echo "✅ Installed core dependencies without optional extras"
           echo "✅ Dependencies installed using bookverse-core patterns"
