@@ -2,17 +2,18 @@
 
 ## 📋 Table of Contents
 
-- [Quick Reference](#quick-reference)
-- [Workflow Steps Breakdown](#workflow-steps-breakdown)
-- [Environment Variables](#environment-variables)
-- [Artifact Specifications](#artifact-specifications)
-- [Evidence Framework](#evidence-framework)
-- [Troubleshooting](#troubleshooting)
-- [Best Practices](#best-practices)
+- [Quick Reference](#-quick-reference)
+- [Workflow Steps Breakdown](#-workflow-steps-breakdown)
+- [Environment Variables](#-environment-variables)
+- [Artifact Specifications](#-artifact-specifications)
+- [Evidence Framework](#️-evidence-framework)
+- [Troubleshooting](#-troubleshooting)
+- [Best Practices](#-best-practices)
 
 ## ⚡ Quick Reference
 
 ### Workflow Overview
+
 ```yaml
 Workflow: .github/workflows/ci.yml
 Total Jobs: 3
@@ -23,6 +24,7 @@ Promotion Stages: 4 (DEV → QA → STAGING → PROD)
 ```
 
 ### Trigger Conditions
+
 | Trigger | Condition | App Version Created |
 |---------|-----------|-------------------|
 | `push` to main | Always runs | Based on commit analysis |
@@ -30,6 +32,7 @@ Promotion Stages: 4 (DEV → QA → STAGING → PROD)
 | `workflow_dispatch` | Manual trigger | Based on input parameter |
 
 ### Job Dependencies
+
 ```mermaid
 graph LR
     A[analyze-commit] --> B[build-test-publish]
@@ -42,11 +45,13 @@ graph LR
 ### Job 1: `analyze-commit`
 
 #### Purpose
+
 Intelligently determines whether to create an AppTrust application version based on commit content analysis.
 
 #### Steps Detail
 
 ##### 1. Repository Setup
+
 ```yaml
 - name: "[Setup] Checkout"
   uses: actions/checkout@v4
@@ -55,6 +60,7 @@ Intelligently determines whether to create an AppTrust application version based
 ```
 
 ##### 2. Shared Infrastructure Access
+
 ```yaml
 - name: "[Setup] Checkout bookverse-infra"
   # Provides access to shared DevOps scripts and libraries
@@ -62,6 +68,7 @@ Intelligently determines whether to create an AppTrust application version based
 ```
 
 ##### 3. Commit Analysis
+
 ```bash
 # Script: analyze-commit.sh
 # Analyzes:
@@ -77,6 +84,7 @@ commit_type: "code|docs|config|tests"
 ```
 
 #### Decision Logic
+
 ```bash
 # Code changes → create_app_version: true
 if [[ $(git diff --name-only HEAD~1 | grep -E '\.(py|js|ts|yaml)$') ]]; then
@@ -93,12 +101,14 @@ fi
 
 ### Job 2: `build-test-publish`
 
-#### Purpose
+#### Build & Test Purpose
+
 Core CI/CD pipeline that builds, tests, and publishes all service artifacts.
 
 #### Phase Breakdown
 
 ##### Phase 1: Environment Setup (Steps 1-5)
+
 ```yaml
 # Duration: ~2 minutes
 # Steps:
@@ -110,6 +120,7 @@ Core CI/CD pipeline that builds, tests, and publishes all service artifacts.
 ```
 
 ##### Phase 2: Authentication & Security (Steps 6-7)
+
 ```yaml
 # Duration: ~1 minute
 # Steps:
@@ -118,6 +129,7 @@ Core CI/CD pipeline that builds, tests, and publishes all service artifacts.
 ```
 
 ##### Phase 3: Version Management (Steps 8-9)
+
 ```yaml
 # Duration: ~1 minute
 # Steps:
@@ -126,6 +138,7 @@ Core CI/CD pipeline that builds, tests, and publishes all service artifacts.
 ```
 
 **SemVer Process**:
+
 ```bash
 # Uses shared semver script from bookverse-infra
 ./determine-semver.sh \
@@ -145,6 +158,7 @@ APP_VERSION=1.2.3
 ```
 
 ##### Phase 4: Build & Test (Steps 10-13)
+
 ```yaml
 # Duration: ~3 minutes
 # Steps:
@@ -155,6 +169,7 @@ APP_VERSION=1.2.3
 ```
 
 **Test Configuration**:
+
 ```bash
 # Test Command
 python -m pytest tests/test_simple.py -v --cov-report=xml --cov-report=term-missing
@@ -166,6 +181,7 @@ status: PASSED
 ```
 
 ##### Phase 5: Multi-Artifact Build (Steps 14-22)
+
 ```yaml
 # Duration: ~4 minutes
 # Steps:
@@ -181,6 +197,7 @@ status: PASSED
 ```
 
 **Docker Build Process**:
+
 ```bash
 # API Image
 IMAGE_NAME="$REGISTRY_URL/$REPO_KEY/recommendations:$RECOMMENDATIONS_VERSION"
@@ -194,6 +211,7 @@ docker push "$WORKER_IMAGE"
 ```
 
 **Generic Artifact Process**:
+
 ```bash
 # Config Bundle
 tar -czf "recommendations-config-$CONFIG_VERSION.tar.gz" recommendations-settings.yaml
@@ -207,6 +225,7 @@ jf rt upload "dist/resources/recommendations-resources-$RESOURCES_VERSION.tar.gz
 ```
 
 ##### Phase 6: Evidence & Build-Info (Steps 23-24)
+
 ```yaml
 # Duration: ~2 minutes
 # Steps:
@@ -216,16 +235,19 @@ jf rt upload "dist/resources/recommendations-resources-$RESOURCES_VERSION.tar.gz
 
 ### Job 3: `create-promote`
 
-#### Purpose
+#### Promotion Purpose
+
 Creates AppTrust application version and promotes through all deployment stages.
 
 #### Execution Condition
+
 ```yaml
 if: needs.analyze-commit.outputs.create_app_version == 'true' && 
     needs.build-test-publish.result == 'success'
 ```
 
 #### Steps Overview
+
 ```yaml
 # Duration: ~6 minutes
 # Steps:
@@ -242,6 +264,7 @@ if: needs.analyze-commit.outputs.create_app_version == 'true' &&
 #### AppTrust Integration
 
 ##### Application Version Creation
+
 ```bash
 # API Call
 POST /apptrust/api/v1/applications/bookverse-recommendations/versions
@@ -262,6 +285,7 @@ POST /apptrust/api/v1/applications/bookverse-recommendations/versions
 ```
 
 ##### Promotion Process
+
 ```bash
 # For each stage (DEV, QA, STAGING, PROD):
 1. Setup promotion environment
@@ -273,6 +297,7 @@ POST /apptrust/api/v1/applications/bookverse-recommendations/versions
 ## 🌍 Environment Variables
 
 ### Required Repository Variables
+
 ```yaml
 # JFrog Configuration
 JFROG_URL: "https://releases.jfrog.io"
@@ -284,6 +309,7 @@ EVIDENCE_KEY_ALIAS: "bookverse-evidence-key"
 ```
 
 ### Required Repository Secrets
+
 ```yaml
 # Evidence Signing
 EVIDENCE_PRIVATE_KEY: |
@@ -293,6 +319,7 @@ EVIDENCE_PRIVATE_KEY: |
 ```
 
 ### Generated Environment Variables
+
 ```yaml
 # Build Identity
 BUILD_NAME: "bookverse-recommendations_CI_build-test-publish"
@@ -320,6 +347,7 @@ JF_OIDC_TOKEN: "[Generated OIDC access token]"
 ### Docker Images
 
 #### Recommendations API Image
+
 ```yaml
 Name: recommendations
 Base Image: python:3.11-slim
@@ -331,6 +359,7 @@ Versioning: SemVer (e.g., 1.2.3)
 ```
 
 **Image Labels**:
+
 ```dockerfile
 LABEL org.opencontainers.image.title="BookVerse Recommendations API"
 LABEL org.opencontainers.image.description="AI-powered book recommendation service"
@@ -340,6 +369,7 @@ LABEL org.opencontainers.image.created="2024-01-15T10:30:00Z"
 ```
 
 #### Recommendations Worker Image
+
 ```yaml
 Name: recommendations-worker
 Base Image: python:3.11-slim
@@ -352,6 +382,7 @@ Versioning: Independent SemVer (e.g., 1.2.4)
 ### Generic Artifacts
 
 #### Configuration Bundle
+
 ```yaml
 Name: recommendations-config-{version}.tar.gz
 Content: YAML configuration files
@@ -362,7 +393,8 @@ Path: recommendations/config/{version}/
 ```
 
 **Bundle Contents**:
-```
+
+```text
 recommendations-config-1.2.1.tar.gz
 ├── recommendations-settings.yaml    # Algorithm configuration
 ├── feature-weights.yaml            # ML feature weights  
@@ -371,6 +403,7 @@ recommendations-config-1.2.1.tar.gz
 ```
 
 #### Resources Bundle
+
 ```yaml
 Name: recommendations-resources-{version}.tar.gz
 Content: ML models and data files
@@ -381,7 +414,8 @@ Path: recommendations/resources/{version}/
 ```
 
 **Bundle Contents**:
-```
+
+```text
 recommendations-resources-1.2.2.tar.gz
 ├── stopwords.txt                   # NLP stopwords
 ├── models/
@@ -397,9 +431,11 @@ recommendations-resources-1.2.2.tar.gz
 ### Evidence Types by Stage
 
 #### Package-Level Evidence
+
 Applied to individual artifacts (Docker images, generic packages).
 
 ##### 1. PyTest Results Evidence
+
 ```json
 {
   "@type": "https://pytest.org/evidence/results/v1",
@@ -417,6 +453,7 @@ Applied to individual artifacts (Docker images, generic packages).
 ```
 
 ##### 2. SAST Scan Evidence
+
 ```json
 {
   "@type": "https://checkmarx.com/evidence/sast/v1.1",
@@ -433,9 +470,11 @@ Applied to individual artifacts (Docker images, generic packages).
 ```
 
 #### Build-Level Evidence
+
 Applied to the overall build process.
 
 ##### 3. FOSSA License Scan
+
 ```json
 {
   "scan_type": "license_compliance",
@@ -447,6 +486,7 @@ Applied to the overall build process.
 ```
 
 ##### 4. SonarQube Quality Gate
+
 ```json
 {
   "quality_gate": "PASSED",
@@ -459,9 +499,11 @@ Applied to the overall build process.
 ```
 
 #### Application-Level Evidence
+
 Applied to the AppTrust application version.
 
 ##### 5. SLSA Provenance
+
 ```json
 {
   "@type": "https://in-toto.io/Statement/v0.1",
@@ -483,6 +525,7 @@ Applied to the AppTrust application version.
 ```
 
 ##### 6. Jira Release Evidence
+
 ```json
 {
   "release_ticket": "BOOK-123",
@@ -496,6 +539,7 @@ Applied to the AppTrust application version.
 #### Stage-Specific Evidence
 
 ##### DEV Stage - Smoke Tests
+
 ```json
 {
   "test_type": "smoke_tests",
@@ -507,6 +551,7 @@ Applied to the AppTrust application version.
 ```
 
 ##### QA Stage - DAST Scan & API Tests
+
 ```json
 {
   "dast_scan": {
@@ -523,6 +568,7 @@ Applied to the AppTrust application version.
 ```
 
 ##### STAGING Stage - IaC Scan & Pentest
+
 ```json
 {
   "iac_scan": {
@@ -539,6 +585,7 @@ Applied to the AppTrust application version.
 ```
 
 ##### PROD Stage - Deployment Verification
+
 ```json
 {
   "deployment_status": "SUCCESS",
@@ -553,6 +600,7 @@ Applied to the AppTrust application version.
 ### Common Issues & Solutions
 
 #### 1. JFrog Authentication Failures
+
 ```bash
 # Error: "Failed to authenticate with JFrog"
 # Cause: OIDC provider misconfiguration
@@ -569,6 +617,7 @@ jf rt curl -XGET "/access/api/v1/oidc/providers" | jq '.[] | select(.name=="book
 ```
 
 #### 2. Version Determination Errors
+
 ```bash
 # Error: "Failed to determine APP_VERSION"
 # Cause: Missing version-map.yaml or API connectivity
@@ -584,6 +633,7 @@ curl -H "Authorization: Bearer $JF_OIDC_TOKEN" "$JFROG_URL/apptrust/api/v1/appli
 ```
 
 #### 3. Docker Build Failures
+
 ```bash
 # Error: "Docker build failed"
 # Cause: Missing dependencies or network issues
@@ -599,6 +649,7 @@ jf rt ping
 ```
 
 #### 4. Evidence Collection Issues
+
 ```bash
 # Error: "Evidence creation failed"
 # Cause: Missing evidence key or package not found
@@ -616,6 +667,7 @@ jf rt search "recommendations:*" --repos="*docker*"
 ### Debug Mode Activation
 
 #### Enable Verbose Logging
+
 ```yaml
 # Add to workflow for debugging
 env:
@@ -625,6 +677,7 @@ env:
 ```
 
 #### Manual Workflow Execution
+
 ```yaml
 # Use workflow_dispatch for testing
 inputs:
@@ -635,6 +688,7 @@ inputs:
 ### Performance Optimization
 
 #### Build Time Optimization
+
 ```yaml
 # Current timings:
 analyze-commit: ~1 minute
@@ -654,6 +708,7 @@ Total: ~15 minutes
 ### Repository Configuration
 
 #### Required Files
+
 ```bash
 # Mandatory configuration files
 .github/workflows/ci.yml           # Main CI/CD workflow
@@ -666,6 +721,7 @@ Dockerfile.worker                  # Worker image definition
 ```
 
 #### Security Practices
+
 ```yaml
 # Secrets Management
 - Use OIDC instead of long-lived tokens
@@ -683,6 +739,7 @@ Dockerfile.worker                  # Worker image definition
 ### Workflow Maintenance
 
 #### Regular Updates
+
 ```yaml
 # Monthly tasks:
 - Update action versions (actions/checkout@v4)
@@ -698,6 +755,7 @@ Dockerfile.worker                  # Worker image definition
 ```
 
 #### Monitoring & Alerting
+
 ```yaml
 # Key metrics to monitor:
 - Build success rate (target: >95%)

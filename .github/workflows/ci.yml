@@ -183,7 +183,7 @@ jobs:
       id-token: write    # OIDC token generation for JFrog authentication
     outputs:
       build_name: ${{ steps.set-build-info.outputs.build_name }}
-      build_started_timestamp: ${{ env.BUILD_STARTED_TIMESTAMP }}
+      build_started_timestamp: ${{ steps.publish-build-info.outputs.build_started_timestamp }}
       build_number: ${{ steps.set-build-info.outputs.build_number }}
       app_version: ${{ steps.determine-semver.outputs.app_version }}
       coverage_percent: ${{ steps.test-coverage.outputs.coverage_percent }}
@@ -622,6 +622,7 @@ jobs:
 
  
       - name: "[Build Info] Publish"
+        id: publish-build-info
         run: |
           echo "📋 Publishing comprehensive build-info with all associated artifacts"
           echo "🏗️ Build: $BUILD_NAME/$BUILD_NUMBER"
@@ -642,7 +643,7 @@ jobs:
                 BUILD_STARTED_TIMESTAMP=$(date -u -r "$EPOCH_SEC" "+%Y-%m-%dT%H:%M:%S" 2>/dev/null || date -u -d "@$EPOCH_SEC" "+%Y-%m-%dT%H:%M:%S")
                 BUILD_STARTED_TIMESTAMP="${BUILD_STARTED_TIMESTAMP}.$(printf "%03d" $MILLISECS)+0000"
                 
-                echo "BUILD_STARTED_TIMESTAMP=$BUILD_STARTED_TIMESTAMP" >> $GITHUB_ENV
+                echo "build_started_timestamp=$BUILD_STARTED_TIMESTAMP" >> $GITHUB_OUTPUT
                 echo "✅ Extracted timestamp from build publish result: $BUILD_STARTED_TIMESTAMP"
               else
                 echo "⚠️ Could not extract valid timestamp from UI URL: $BUILD_UI_URL"
