@@ -6,9 +6,9 @@ BookVerse is a comprehensive microservices platform that delivers modern softwar
 
 ---
 
-## 🏗️ Platform Architecture
 
-BookVerse consists of seven integrated components that work together to deliver a complete microservices ecosystem:
+
+BookVerse consists of seven integrated components that work together to deliver a complete microservices ecosystem, each showcasing different CI/CD patterns and deployment strategies:
 
 ### 📦 **Inventory Service**
 
@@ -19,6 +19,8 @@ BookVerse consists of seven integrated components that work together to deliver 
 - SQLite database with comprehensive book metadata
 - Automated stock level monitoring and alerts
 
+**Build Pattern**: Single-container application - demonstrates basic containerized service deployment with minimal complexity
+
 ### 🤖 **Recommendations Service**
 
 #### AI-powered personalized recommendations
@@ -27,6 +29,8 @@ BookVerse consists of seven integrated components that work together to deliver 
 - Real-time recommendation generation (sub-200ms response times)
 - Scalable worker architecture for background processing
 - Configurable recommendation models and scoring factors
+
+**Build Pattern**: Multi-container orchestration - showcases complex service deployment with multiple Docker images, worker processes, and supporting artifacts
 
 ### 💳 **Checkout Service**
 
@@ -37,6 +41,8 @@ BookVerse consists of seven integrated components that work together to deliver 
 - Order state tracking and inventory coordination
 - Event-driven architecture with order notifications
 
+**Build Pattern**: Service with dependencies - demonstrates deployment coordination with external services and database migrations
+
 ### 🌐 **Web Application**
 
 #### Modern responsive frontend
@@ -46,14 +52,29 @@ BookVerse consists of seven integrated components that work together to deliver 
 - Real-time integration with all backend services
 - Client-side routing and state management
 
+**Build Pattern**: Static asset deployment - showcases frontend build pipelines with asset optimization and CDN distribution
+
 ### 🏢 **Platform Service**
 
-#### Service orchestration and coordination
+#### Integration testing and validation
 
-- Cross-service version management and release coordination
-- Health monitoring and service discovery
-- Centralized configuration and feature flag management
-- API gateway functionality and request routing
+- Cross-service integration testing as a unified platform
+- End-to-end validation of service interactions
+- Platform-wide health verification and monitoring
+- Component compatibility and version validation
+
+**Build Pattern**: Aggregation service - demonstrates platform-level testing patterns that validate multiple services working together
+
+### 🏗️ **Infrastructure Libraries**
+
+#### Shared libraries and DevOps tooling
+
+- Core business logic shared across services (bookverse-core)
+- DevOps automation and deployment scripts (bookverse-devops)
+- Common utilities and configuration management
+- Evidence collection and compliance frameworks
+
+**Build Pattern**: Multi-artifact library publishing - showcases shared library management with separate core and DevOps build pipelines
 
 ### ⎈ **Helm Charts**
 
@@ -64,17 +85,18 @@ BookVerse consists of seven integrated components that work together to deliver 
 - GitOps deployment workflows with ArgoCD integration
 - Automated scaling and resource management
 
-### 🚀 **Orchestration Layer**
+**Build Pattern**: Infrastructure as Code - demonstrates versioned deployment artifacts and environment promotion strategies
 
-#### Platform setup and configuration automation
+### 🚀 **Demo Orchestration Layer**
+
+#### Platform setup and configuration automation (Demo Infrastructure)
 
 - Automated JFrog Platform provisioning and configuration
 - GitHub repository creation and CI/CD setup
 - OIDC integration and security configuration
 - Environment validation and health checking
 
----
-
+**Build Pattern**: Setup automation - showcases demo environment provisioning and platform configuration (not part of the BookVerse application itself)
 ## ✨ Core Capabilities
 
 ### 🔐 **Zero-Trust Security**
