@@ -97,38 +97,6 @@ BookVerse consists of seven integrated components that work together to deliver 
 - Environment validation and health checking
 
 **Build Pattern**: Setup automation - showcases demo environment provisioning and platform configuration (not part of the BookVerse application itself)
-## ✨ Core Capabilities
-
-### 🔐 **Zero-Trust Security**
-
-- **OIDC Authentication**: Passwordless CI/CD with GitHub Actions integration
-- **Cryptographic Evidence**: Digital signing and verification of all artifacts
-- **SBOM Generation**: Automated Software Bill of Materials for supply chain security
-- **Vulnerability Scanning**: Continuous security assessment throughout the pipeline
-
-### 🔄 **Advanced CI/CD**
-
-- **Multi-Stage Promotion**: Automated promotion through DEV → QA → STAGING → PROD
-- **Intelligent Filtering**: Smart commit analysis for optimized build decisions
-- **Artifact Traceability**: End-to-end tracking from source code to production
-- **Evidence Collection**: Comprehensive audit trails for compliance requirements
-
-### ☸️ **Cloud-Native Deployment**
-
-- **Container-First**: Docker-based deployment across all services
-- **Kubernetes Ready**: Production-grade Helm charts and manifests
-- **GitOps Integration**: Automated deployment with ArgoCD
-- **Multi-Environment**: Consistent deployment across development, staging, and production
-
-### 📊 **Enterprise Operations**
-
-- **Monitoring & Observability**: Built-in health checks and metrics collection
-- **Scalability**: Horizontal scaling support for all services
-- **Resilience**: Circuit breakers, retries, and graceful degradation
-- **Configuration Management**: Environment-specific configuration with secrets management
-
----
-
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -275,6 +243,10 @@ After successful deployment:
 - Compliance automation
 
 ---
+
+## 🌟 Platform Highlights
+
+**Zero-Trust Security**: OIDC authentication, cryptographic evidence, SBOM generation, and vulnerability scanning • **Advanced CI/CD**: Multi-stage promotion, intelligent filtering, and comprehensive audit trails • **Cloud-Native**: Container-first deployment with Kubernetes and GitOps integration • **Enterprise Ready**: Scalable architecture with monitoring, automated testing, and multi-environment support
 
 ## 🎯 What's Next?
 
