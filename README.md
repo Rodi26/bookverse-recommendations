@@ -1,395 +1,275 @@
-# 🎯 BookVerse Recommendations Service
+# BookVerse Platform
 
-A sophisticated, enterprise-grade recommendation engine for the BookVerse platform. This service demonstrates modern software delivery practices with comprehensive CI/CD automation, multi-artifact publishing, and evidence-based compliance.
+## Enterprise Microservices Platform with Secure Software Supply Chain Management
+
+BookVerse is a comprehensive microservices platform that delivers modern software development practices, secure CI/CD pipelines, and enterprise-grade deployment automation. Built with industry-leading technologies, BookVerse provides organizations with a complete reference architecture for scalable, secure, and compliant software delivery.
+
+---
+
+## 🏗️ Platform Architecture
+
+BookVerse consists of seven integrated components that work together to deliver a complete microservices ecosystem:
+
+### 📦 **Inventory Service**
+
+#### Product catalog and stock management
+
+- Real-time inventory tracking and availability management
+- RESTful API for catalog operations and stock queries
+- SQLite database with comprehensive book metadata
+- Automated stock level monitoring and alerts
+
+### 🤖 **Recommendations Service**
+
+#### AI-powered personalized recommendations
+
+- Machine learning recommendation engine with configurable algorithms
+- Real-time recommendation generation (sub-200ms response times)
+- Scalable worker architecture for background processing
+- Configurable recommendation models and scoring factors
+
+### 💳 **Checkout Service**
+
+#### Order processing and payment management
+
+- Complete order lifecycle management from cart to fulfillment
+- Integrated payment processing with mock and real payment gateways
+- Order state tracking and inventory coordination
+- Event-driven architecture with order notifications
+
+### 🌐 **Web Application**
+
+#### Modern responsive frontend
+
+- Single-page application built with vanilla JavaScript
+- Responsive design with mobile-first approach
+- Real-time integration with all backend services
+- Client-side routing and state management
+
+### 🏢 **Platform Service**
+
+#### Service orchestration and coordination
+
+- Cross-service version management and release coordination
+- Health monitoring and service discovery
+- Centralized configuration and feature flag management
+- API gateway functionality and request routing
+
+### ⎈ **Helm Charts**
+
+#### Kubernetes deployment automation
+
+- Production-ready Helm charts for all services
+- Environment-specific configuration management
+- GitOps deployment workflows with ArgoCD integration
+- Automated scaling and resource management
+
+### 🚀 **Orchestration Layer**
+
+#### Platform setup and configuration automation
+
+- Automated JFrog Platform provisioning and configuration
+- GitHub repository creation and CI/CD setup
+- OIDC integration and security configuration
+- Environment validation and health checking
+
+---
+
+## ✨ Core Capabilities
+
+### 🔐 **Zero-Trust Security**
+
+- **OIDC Authentication**: Passwordless CI/CD with GitHub Actions integration
+- **Cryptographic Evidence**: Digital signing and verification of all artifacts
+- **SBOM Generation**: Automated Software Bill of Materials for supply chain security
+- **Vulnerability Scanning**: Continuous security assessment throughout the pipeline
+
+### 🔄 **Advanced CI/CD**
+
+- **Multi-Stage Promotion**: Automated promotion through DEV → QA → STAGING → PROD
+- **Intelligent Filtering**: Smart commit analysis for optimized build decisions
+- **Artifact Traceability**: End-to-end tracking from source code to production
+- **Evidence Collection**: Comprehensive audit trails for compliance requirements
+
+### ☸️ **Cloud-Native Deployment**
+
+- **Container-First**: Docker-based deployment across all services
+- **Kubernetes Ready**: Production-grade Helm charts and manifests
+- **GitOps Integration**: Automated deployment with ArgoCD
+- **Multi-Environment**: Consistent deployment across development, staging, and production
+
+### 📊 **Enterprise Operations**
+
+- **Monitoring & Observability**: Built-in health checks and metrics collection
+- **Scalability**: Horizontal scaling support for all services
+- **Resilience**: Circuit breakers, retries, and graceful degradation
+- **Configuration Management**: Environment-specific configuration with secrets management
+
+---
 
 ## 🚀 Quick Start
 
-### Local Development
-```bash
-# Install dependencies
-pip install -r requirements.txt
+### Prerequisites
 
-# Run the service
-uvicorn app.main:app --reload --port 8000
+Ensure you have the following tools and access:
 
-# Health check
-curl http://localhost:8000/health
-```
+- **JFrog Platform** with admin privileges (Artifactory + AppTrust)
+- **GitHub Organization** with repository creation permissions  
+- **GitHub CLI** (`gh`) installed and authenticated
+- **Basic Tools**: `curl`, `jq`, `bash`
+- **Optional**: Kubernetes cluster for runtime deployment
 
-### Docker Deployment
-```bash
-# Build and run API service
-docker build -t bookverse-recommendations:dev .
-docker run -p 8000:8000 bookverse-recommendations:dev
-
-# Build and run worker service
-docker build -f Dockerfile.worker -t bookverse-recommendations-worker:dev .
-docker run bookverse-recommendations-worker:dev
-```
-
-## 📋 Service Overview
-
-### 🎯 Purpose
-The BookVerse Recommendations Service is an AI-powered recommendation engine that provides personalized book suggestions to users based on their reading history, preferences, and behavioral patterns. The service is designed to showcase enterprise-grade software delivery practices while maintaining simplicity for demonstration purposes.
-
-### 🏗️ Architecture
-- **Algorithm**: Sophisticated rule-based scorer using genre/author overlap with popularity weighting
-- **Data Source**: Real-time integration with `bookverse-inventory` service for books and transactions
-- **Indexing**: High-performance in-memory inverted indices (genre/author) with TTL caching
-- **Multi-Artifact Design**: Distributed as multiple coordinated artifacts for maximum flexibility
-
-### 📦 Artifacts Produced
-1. **📱 API Service** - Main recommendation service (Docker image)
-2. **🔧 Worker Service** - Background processing engine (Docker image)  
-3. **⚙️ Configuration Bundle** - Algorithm parameters and settings (Generic artifact)
-4. **📚 Resources Bundle** - ML models, stopwords, and training data (Generic artifact)
-
-### 🌟 Key Features
-- **Real-time Recommendations** - Sub-200ms response times for personalized suggestions
-- **Scalable Architecture** - Independent scaling of API and worker components
-- **Configurable Algorithms** - External configuration for easy tuning without code changes
-- **Comprehensive Monitoring** - Full observability with health checks and metrics
-- **Security First** - OIDC authentication and evidence-based compliance
-
-## 🔗 API Endpoints
-
-### Core Endpoints
-| Method | Endpoint | Description | Response Time |
-|--------|----------|-------------|---------------|
-| `GET` | `/health` | Basic health check | <10ms |
-| `GET` | `/info` | Service information and version | <50ms |
-| `GET` | `/api/v1/recommendations/health` | Detailed health diagnostics | <100ms |
-
-### Recommendation Endpoints
-| Method | Endpoint | Description | Response Time |
-|--------|----------|-------------|---------------|
-| `GET` | `/api/v1/recommendations/similar?book_id=<uuid>&limit=10` | Books similar to specified book | <200ms |
-| `POST` | `/api/v1/recommendations/personalized` | Personalized recommendations based on user profile | <300ms |
-| `GET` | `/api/v1/recommendations/trending?limit=10` | Currently trending books | <150ms |
-
-### Example Usage
-```bash
-# Get similar books
-curl "http://localhost:8000/api/v1/recommendations/similar?book_id=123e4567-e89b-12d3-a456-426614174000&limit=5"
-
-# Get trending books
-curl "http://localhost:8000/api/v1/recommendations/trending?limit=10"
-
-# Get personalized recommendations
-curl -X POST "http://localhost:8000/api/v1/recommendations/personalized" \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "user123", "preferences": {"genres": ["fiction", "mystery"]}}'
-```
-
-> **Note**: In the demo environment, the web application consumes these endpoints automatically. Manual API calls are optional for testing purposes.
-
-## 🏗️ Multi-Artifact Build System
-
-This service implements a sophisticated multi-artifact build strategy that demonstrates enterprise-grade software delivery practices. Each artifact serves a specific purpose and is versioned independently for maximum flexibility.
-
-### 📦 Artifact Details
-
-#### 1. 📱 API Service Image
-```dockerfile
-# File: Dockerfile
-# Purpose: Main recommendation service API
-# Base: python:3.11-slim
-# Size: ~1.2GB
-# Ports: 8000
-```
-
-**Features**:
-- FastAPI-based REST API
-- Health check endpoints
-- Metrics collection
-- OIDC authentication support
-
-#### 2. 🔧 Worker Service Image
-```dockerfile
-# File: Dockerfile.worker  
-# Purpose: Background recommendation processing
-# Base: python:3.11-slim
-# Size: ~1.3GB
-```
-
-**Features**:
-- Background task processing
-- ML model training and updates
-- Index rebuilding operations
-- Batch recommendation generation
-
-**Worker Execution**:
-```bash
-# Local execution
-python -m app.worker
-
-# Docker execution
-docker run bookverse-recommendations-worker:latest
-```
-
-#### 3. ⚙️ Configuration Bundle
-```yaml
-# Content: Algorithm parameters and feature weights
-# Format: TAR.GZ archive of YAML files
-# Size: ~10KB
-# Path: config/recommendations-settings.yaml
-```
-
-**Configuration Structure**:
-```yaml
-algorithm:
-  weights:
-    genre_similarity: 0.4
-    author_similarity: 0.3
-    popularity_boost: 0.2
-    recency_factor: 0.1
-  thresholds:
-    min_similarity: 0.1
-    max_recommendations: 50
-cache:
-  ttl_seconds: 3600
-  max_entries: 10000
-```
-
-#### 4. 📚 Resources Bundle
-```yaml
-# Content: ML models, stopwords, training data
-# Format: TAR.GZ archive of binary and text files
-# Size: ~50MB
-# Path: resources/stopwords.txt (and others)
-```
-
-**Resource Components**:
-- **Stopwords**: NLP text processing exclusions
-- **ML Models**: Trained recommendation models
-- **Training Data**: Historical user interaction data
-- **Feature Vectors**: Precomputed book similarity matrices
-
-## Configuration
-
-- Environment variables
-  - `INVENTORY_BASE_URL`: base URL for inventory service (e.g., `http://inventory`).
-  - `RECOMMENDATIONS_SETTINGS_PATH`: path to YAML settings, default `config/recommendations-settings.yaml`.
-  - `RECO_TTL_SECONDS`: overrides TTL seconds via env (optional).
-- Settings YAML
-  - See `config/recommendations-settings.yaml` for weights/limits/features.
-
-## 🚀 CI/CD Pipeline
-
-The BookVerse Recommendations Service features a comprehensive, enterprise-grade CI/CD pipeline that demonstrates modern software delivery practices with full automation from code commit to production deployment.
-
-### 🏗️ Pipeline Architecture
-
-```mermaid
-graph TB
-    A[📝 Code Commit] --> B[🔍 Commit Analysis]
-    B --> C[🏗️ Build & Test]
-    C --> D[📦 Multi-Artifact Publishing]
-    D --> E[🛡️ Evidence Collection]
-    E --> F[📋 AppTrust Version Creation]
-    F --> G[🚀 Automated Promotion]
-    
-    subgraph "Stages"
-        H[🧪 DEV]
-        I[🔍 QA] 
-        J[🏗️ STAGING]
-        K[🚀 PROD]
-    end
-    
-    G --> H --> I --> J --> K
-```
-
-### 🎯 Key Features
-
-- **🔄 Intelligent Commit Analysis** - Smart filtering to determine when to create application versions
-- **📦 Multi-Artifact Building** - Coordinated building of Docker images and generic artifacts
-- **🛡️ Comprehensive Security** - OIDC authentication, evidence collection, and compliance gates
-- **🚀 Automated Promotion** - Full pipeline automation through DEV → QA → STAGING → PROD
-- **📊 Complete Traceability** - Full artifact lineage and build provenance tracking
-
-### ⚙️ Configuration Requirements
-
-#### Required Repository Variables
-```yaml
-PROJECT_KEY: "bookverse"                        # Project identifier
-JFROG_URL: "https://releases.jfrog.io"         # JFrog Artifactory URL
-DOCKER_REGISTRY: "releases.jfrog.io"          # Docker registry endpoint
-EVIDENCE_KEY_ALIAS: "bookverse-evidence-key"  # Evidence signing key alias
-```
-
-#### Required Repository Secrets
-```yaml
-EVIDENCE_PRIVATE_KEY: |                        # PEM-formatted private key for evidence signing
-  -----BEGIN PRIVATE KEY-----
-  [Your evidence signing private key]
-  -----END PRIVATE KEY-----
-```
-
-#### Mandatory Configuration Files
-
-##### 1. AppTrust Application Binding
-**Path**: `.jfrog/config.yml`
-```yaml
-# This file binds all artifacts to the correct AppTrust application
-# Must be committed to repository (contains no secrets)
-application:
-  key: "bookverse-recommendations"
-```
-
-##### 2. Version Configuration
-**Path**: `config/version-map.yaml`
-```yaml
-# Defines versioning strategy for all artifacts
-packages:
-  recommendations:
-    current_version: "1.2.3"
-    version_strategy: "semantic"
-  recommendations-worker:
-    current_version: "1.2.4" 
-    version_strategy: "semantic"
-  recommendation-config:
-    current_version: "1.2.1"
-    version_strategy: "semantic"
-  resources:
-    current_version: "1.2.2"
-    version_strategy: "semantic"
-```
-
-### 🔄 Workflow Execution
-
-#### Automatic Triggers
-- **Push to `main`** - Full pipeline execution with conditional app version creation
-- **Pull Request to `main`** - Build and test only (no app version creation)
-
-#### Manual Triggers
-```yaml
-# Manual execution with debugging options
-inputs:
-  reason: "Manual testing or debugging"
-  force_app_version: true  # Override commit analysis
-```
-
-#### Pipeline Jobs
-
-##### Job 1: Commit Analysis (~1 minute)
-- Analyzes changed files to determine pipeline scope
-- Decides whether to create AppTrust application version
-- Uses shared logic from `bookverse-devops` for consistency
-
-##### Job 2: Build & Test (~8 minutes)
-- Multi-artifact building (API + Worker images, Config + Resources bundles)
-- Comprehensive testing with coverage reporting
-- Evidence collection and attachment
-- JFrog Artifactory publishing with build-info
-
-##### Job 3: Create & Promote (~6 minutes)
-- AppTrust application version creation
-- Evidence attachment at application level
-- Automated promotion through all stages (DEV → QA → STAGING → PROD)
-- Stage-specific evidence collection
-
-### 📊 Monitoring & Observability
-
-#### Build Metrics
-- **Success Rate**: >95% target
-- **Duration**: ~15 minutes total
-- **Artifact Count**: 4 artifacts per build
-- **Evidence Collection**: 100% coverage
-
-#### Integration Points
-- **GitHub Actions** - CI/CD orchestration and logging
-- **JFrog Artifactory** - Artifact storage and build-info
-- **AppTrust Platform** - Application lifecycle and compliance
-- **Evidence System** - Security and compliance evidence collection
-
-## Testing
-
-- Run unit tests locally:
+### Installation
 
 ```bash
-python -m pytest -v
+# 1. Clone the platform
+git clone https://github.com/your-org/bookverse-platform.git
+cd bookverse-platform
+
+# 2. Configure your environment
+export JFROG_URL="https://your-instance.jfrog.io"
+export JFROG_ADMIN_TOKEN="your-admin-token"
+
+# 3. Run automated setup
+./scripts/setup-platform.sh
+
+# 4. Verify deployment
+./scripts/validate-platform.sh
 ```
 
-## How it works
+### Access Your Platform
 
-- `Indexer` fetches a snapshot of books and transactions from `bookverse-inventory`, builds inverted indices for authors/genres, and derives a simple popularity prior from recent `stock_out` transactions.
-- `score_simple` combines genre/author overlap with the popularity prior (weights from `config/recommendations-settings.yaml`).
-- APIs in `app/api.py` expose similar, personalized, and trending endpoints, with a TTL cache configurable via `RECO_TTL_SECONDS`.
+After successful deployment:
+
+- **📊 Platform Dashboard**: `https://bookverse.your-domain.com`
+- **📚 API Documentation**: `https://api.bookverse.your-domain.com/docs`
+- **🔧 Admin Interface**: `https://admin.bookverse.your-domain.com`
+- **📈 Monitoring**: `https://monitoring.bookverse.your-domain.com`
+
+---
+
+## 📋 Platform Components
+
+| Component | Purpose | Technology Stack | Deployment |
+|-----------|---------|------------------|------------|
+| **Inventory** | Product catalog & inventory management | Python, FastAPI, SQLite | Container + K8s |
+| **Recommendations** | AI-powered recommendation engine | Python, scikit-learn, FastAPI | Container + K8s |
+| **Checkout** | Order processing & payments | Python, FastAPI, PostgreSQL | Container + K8s |
+| **Web App** | Frontend user interface | Vanilla JS, Vite, HTML5 | Static + CDN |
+| **Platform** | Service orchestration | Python, FastAPI | Container + K8s |
+| **Helm Charts** | K8s deployment automation | Helm 3, YAML | GitOps |
+| **Orchestration** | Platform automation | Python, Shell, GitHub Actions | Automation |
+
+---
+
+## 🎯 Use Cases
+
+### 🏢 **Enterprise Development Teams**
+
+- Reference architecture for microservices transformation
+- Secure CI/CD pipeline implementation
+- Container orchestration and deployment automation
+- DevSecOps practices and compliance automation
+
+### 🔧 **DevOps Engineers**
+
+- Complete GitOps workflow implementation
+- Multi-environment deployment strategies
+- Infrastructure as Code patterns
+- Monitoring and observability setup
+
+### 🔐 **Security Teams**
+
+- Software supply chain security implementation
+- Zero-trust CI/CD pipeline design
+- Vulnerability management workflows
+- Compliance and audit trail automation
+
+### 🏗️ **Platform Engineers**
+
+- Microservices architecture patterns
+- Service mesh and API gateway configuration
+- Cross-service communication strategies
+- Platform engineering best practices
+
+---
 
 ## 📚 Documentation
 
-### 📖 Core Documentation
-- **[📖 Complete Service Guide](./docs/SERVICE_GUIDE.md)** - Comprehensive service documentation (API, Algorithm, Deployment, Monitoring)
-- **[🏗️ CI/CD Architecture](./docs/CI_CD_ARCHITECTURE.md)** - Complete CI/CD system architecture and design
-- **[📋 Workflow Reference](./docs/WORKFLOW_REFERENCE.md)** - Detailed workflow steps and configuration reference
-- **[🔧 Troubleshooting Guide](./docs/TROUBLESHOOTING.md)** - Common issues, solutions, and debug procedures
-- **[🚀 CI/CD Overview](./docs/CI_CD.md)** - Quick CI/CD pipeline overview and getting started
+### 🚀 **Platform Setup & Architecture**
 
-### 🔧 Workflow Files
-- **[`ci.yml`](.github/workflows/ci.yml)** - Main CI/CD pipeline with multi-artifact building and evidence collection
-- **[`promote.yml`](.github/workflows/promote.yml)** - Manual promotion workflow for advancing through stages
-- **[`promotion-rollback.yml`](.github/workflows/promotion-rollback.yml)** - Emergency rollback utility for production issues
+- [📖 **Getting Started**](docs/GETTING_STARTED.md) - Complete setup and deployment instructions
+- [🏗️ **Architecture Overview**](docs/ARCHITECTURE.md) - System design and component relationships
+- [🎮 **Demo Runbook**](docs/DEMO_RUNBOOK.md) - Step-by-step demo execution guide
+- [⚙️ **Repository Architecture**](docs/REPO_ARCHITECTURE.md) - Code organization and structure
 
-### 🚀 Quick Links
-- [📖 Service Guide - Local Development](./docs/SERVICE_GUIDE.md#local-development) - Complete development setup
-- [📖 Service Guide - API Reference](./docs/SERVICE_GUIDE.md#api-reference) - Complete API documentation
-- [📖 Service Guide - Algorithm](./docs/SERVICE_GUIDE.md#algorithm) - Recommendation algorithm details
-- [📖 Service Guide - Deployment](./docs/SERVICE_GUIDE.md#deployment) - Production deployment procedures
-- [🔧 Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
+### ⚙️ **Operations & Integration**
 
-## 🤝 Contributing
+- [🔄 **CI/CD Deployment**](docs/CICD_DEPLOYMENT_GUIDE.md) - Pipeline configuration and automation
+- [🔐 **OIDC Authentication**](docs/OIDC_AUTHENTICATION.md) - Zero-trust authentication setup
+- [🏗️ **Setup Automation**](docs/SETUP_AUTOMATION.md) - Platform provisioning and configuration
+- [📈 **Evidence Collection**](docs/EVIDENCE_COLLECTION.md) - Compliance and audit trail automation
+- [🚀 **GitOps Deployment**](docs/GITOPS_DEPLOYMENT.md) - Continuous deployment workflows
+- [🔗 **JFrog Integration**](docs/JFROG_INTEGRATION.md) - Artifact management and security
 
-### Development Workflow
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
+### 🔧 **Advanced Topics**
 
-### Code Standards
-- **Python**: Follow PEP 8 style guidelines
-- **Testing**: Maintain >80% test coverage
-- **Documentation**: Update relevant documentation for all changes
-- **Security**: All code must pass security scans
-
-### CI/CD Integration
-- All PRs trigger the full CI pipeline
-- Code coverage reports are automatically generated
-- Security scanning is performed on all commits
-- Evidence collection validates compliance requirements
-
-## 📞 Support
-
-### Getting Help
-- **Documentation**: Check the [comprehensive documentation](./docs/) first
-- **Issues**: Create a [GitHub issue](https://github.com/bookverse/bookverse-recommendations/issues) for bugs or feature requests
-- **Discussions**: Use [GitHub Discussions](https://github.com/bookverse/bookverse-recommendations/discussions) for questions
-
-### Team Contacts
-| Component | Team | Email |
-|-----------|------|-------|
-| **Service Development** | Backend Team | backend@bookverse.com |
-| **CI/CD Pipeline** | DevOps Team | devops@bookverse.com |
-| **Security & Compliance** | Security Team | security@bookverse.com |
-| **Architecture** | Platform Team | platform@bookverse.com |
+- [🔄 **Promotion Workflows**](docs/PROMOTION_WORKFLOWS.md) - Multi-stage deployment strategies
+- [📋 **AppTrust Lifecycle**](docs/APPTRUST_LIFECYCLE.md) - Software supply chain security
+- [🏗️ **Orchestration Overview**](docs/ORCHESTRATION_OVERVIEW.md) - Platform coordination patterns
+- [🔑 **Evidence Key Deployment**](docs/EVIDENCE_KEY_DEPLOYMENT.md) - Cryptographic key management
+- [🔧 **JFrog Platform Switch**](docs/SWITCH_JFROG_PLATFORM.md) - Platform migration procedures
 
 ---
 
-## 📄 License
+## 🌟 Key Features
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### ✅ **Production Ready**
 
-## 🙏 Acknowledgments
+- Enterprise-grade security and compliance
+- Scalable microservices architecture
+- Comprehensive monitoring and observability
+- Multi-environment deployment support
 
-- **JFrog Platform** - Artifact management and security scanning
-- **AppTrust** - Application lifecycle and evidence management
-- **GitHub Actions** - CI/CD orchestration and automation
-- **FastAPI** - High-performance Python web framework
-- **BookVerse Team** - Continuous improvement and innovation
+### ✅ **Developer Friendly**
+
+- Clear documentation and examples
+- Local development environment
+- Automated testing and quality gates
+- Modern development practices
+
+### ✅ **Operations Focused**
+
+- GitOps deployment workflows
+- Infrastructure as Code
+- Automated scaling and healing
+- Comprehensive audit trails
+
+### ✅ **Secure by Design**
+
+- Zero-trust authentication
+- Encrypted communication
+- Vulnerability scanning
+- Compliance automation
 
 ---
 
-*Last Updated: 2024-01-15*
-*Service Version: 1.2.3*
-*Documentation Version: 1.0.0*
-# TEST 3: Recommendations Service tag management test - Sat Sep 20 22:05:00 IDT 2025
+## 🎯 What's Next?
+
+Ready to get started with BookVerse? Choose your path:
+
+- **🚀 Quick Start**: Follow the [Getting Started Guide](docs/GETTING_STARTED.md) for rapid deployment
+- **🏗️ Deep Dive**: Explore the [Architecture Overview](docs/ARCHITECTURE.md) for detailed system understanding  
+- **🎮 Demo**: Run through the [Demo Runbook](docs/DEMO_RUNBOOK.md) for hands-on experience
+
+**BookVerse provides everything you need to implement enterprise-grade microservices with secure, automated software delivery.**
+
+---
+
+> **Note**: Individual service documentation is available in each service repository:
+> - [Inventory Service](https://github.com/yonatanp-jfrog/bookverse-inventory)
+> - [Recommendations Service](https://github.com/yonatanp-jfrog/bookverse-recommendations)  
+> - [Checkout Service](https://github.com/yonatanp-jfrog/bookverse-checkout)
+> - [Platform Service](https://github.com/yonatanp-jfrog/bookverse-platform)
+> - [Web Application](https://github.com/yonatanp-jfrog/bookverse-web)
+> - [Helm Charts](https://github.com/yonatanp-jfrog/bookverse-helm)
