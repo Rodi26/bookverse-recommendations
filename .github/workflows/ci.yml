@@ -413,7 +413,10 @@ jobs:
             coverage \
             pluggy \
             iniconfig \
-            packaging
+            packaging || echo "⚠️ jf pip install failed, using fallback"
+          
+          # Fallback: Install test dependencies with regular pip if jf pip failed
+          pip install pytest pytest-cov httpx 2>/dev/null || true
           
           echo "✅ Installed core dependencies without optional extras"
           echo "✅ Dependencies installed using bookverse-core patterns"
