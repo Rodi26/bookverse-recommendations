@@ -131,7 +131,7 @@ jobs:
       - name: "[Setup] Checkout bookverse-infra for shared scripts"
         uses: actions/checkout@v4
         with:
-          repository: yonatanp-jfrog/bookverse-infra
+          repository: Rodi26/bookverse-infra
           path: bookverse-infra
 
       # 🧠 Analysis: ML-Optimized commit analysis for deployment decisions
@@ -201,7 +201,7 @@ jobs:
       - name: "[Setup] Checkout bookverse-infra for evidence library"
         uses: actions/checkout@v4
         with:
-          repository: 'yonatanp-jfrog/bookverse-infra'
+          repository: 'Rodi26/bookverse-infra'
           ref: 'main'
           path: 'bookverse-infra'
 
@@ -447,7 +447,7 @@ jobs:
       # Establishes secure access to JFrog Docker registry for publishing
       # recommendation service containers and ML algorithm runtime environments
       - name: "[Build] Docker Registry Authentication"
-        uses: yonatanp-jfrog/bookverse-infra/.github/actions/docker-registry-auth@main
+        uses: Rodi26/bookverse-infra/.github/actions/docker-registry-auth@main
         with:
           oidc-token: ${{ steps.jfrog-cli-auth.outputs.oidc-token }}  # Secure OIDC authentication
           registry-url: ${{ vars.JFROG_URL }}                         # JFrog Docker registry URL
@@ -737,7 +737,7 @@ jobs:
       - name: "[Setup] Checkout bookverse-infra for shared scripts"
         uses: actions/checkout@v4
         with:
-          repository: yonatanp-jfrog/bookverse-infra
+          repository: Rodi26/bookverse-infra
           path: bookverse-infra
 
       - name: "[Setup] JFrog CLI"
