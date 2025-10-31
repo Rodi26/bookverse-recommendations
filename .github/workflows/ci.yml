@@ -698,6 +698,14 @@ jobs:
           
           echo "✅ Build evidence attached via shared library: fossa-license-scan, sonar-quality-gate"
 
+      - name: "[Release Bundle] Create v2 for Build"
+        run: |
+          echo "📦 Creating release bundle v2 after build-info is published"
+          echo "⏳ Waiting 10 seconds for build-info to be fully indexed..."
+          sleep 10
+          source bookverse-infra/libraries/bookverse-devops/scripts/evidence-lib.sh
+          create_release_bundle_for_version || echo "⚠️ Release bundle creation skipped (optional)"
+
   # 🚀 Job: ML Application Version Creation and Automated Promotion Pipeline
   # This job creates immutable application versions for recommendation algorithms
   # and executes automated promotion through DEV → QA → STAGING → PROD stages
